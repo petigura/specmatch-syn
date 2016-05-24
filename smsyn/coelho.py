@@ -1,71 +1,91 @@
+import itertools
 import os
-from smsyn import smio
+
 import h5py
 import numpy as np
 
-SM_DIR = os.environ['SM_DIR']
-lib = smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho.csv')
-
-#lib = library.loadlibrary('library/library_coelho_4900-9000.csv')
-lib['row'] = range(len(lib))
-
-# h5 directory with all the library spectra
-
-libh5 = h5py.File("/Users/petigura/Research/SpecMatch/library/coelho_rwav.h5",'r+')
-#libh5 = h5py.File(os.environ['SM_DIR']+'library/coelho_4900-9000.h5','r+')
-specarr =libh5['s'][:]
-w = libh5['w'][:]
-serr = np.ones(w.size) * 0.05
+import smsyn.smio
+#import smsyn.specmatch
 
 
-def getmodel(mpar,ver=True,wrange=None):
+def coelho_synth(teff,logg,fe,vsini,psf,wlo=None,whi=None,ord=None,obtype='cps',wav=None, macro=True, libfull=False):
     """
-    Get model spectrum
-    
-    Parameters
-    ----------
-    mpar : dictionary with following keys:
-    """
-    
-    idx = (mpar['teff'],mpar['logg'],mpar['fe'])
-    s = specarr[ lib.ix[idx,'row'] ]
-    
-    spec = np.rec.fromarrays([s,serr,w],names=['s','serr','w'])
+    Synthesize Coelho Model
 
-    if wrange is None:
-        return spec
+    For a given teff, logg, fe, vsini, psf, compute a model spectrum by:
 
-    brange = (spec['w'] > wrange[0]) & (spec['w'] < wrange[1])
-    spec = spec[brange]
-    return spec
-
-def getmodelseg(mpar,w, libfull=False):
-    """
-    Get Model Segment
-    
-    Thin wrapper around getmodel. After model is loaded up,
-    interpolate onto `w` wavelength scale
+       1. Determine the 8 coelho models surounding the (teff,logg,fe)
+       2. Perform trilinear interpolation
+       3. Broaden with rot-macro turbulence
+       4. Broaden with PSF (assume gaussian)
 
     Parameters
     ----------
-    mpar : model parameters, passed to getmodel
-    w : wavelength array
+    teff  : effective temp (K)
+    logg  : surface gravity (logg)
+    fe    : metalicity [Fe/H] (dex)
+    vsini : rotational velocity (km/s)
+    psf   : sigma for instrumental profile (pixels)
+    wlo   : lower wavelength
+    whi   : upper wavelength
+    ord   : order
 
     Returns
     -------
-    spec : spectrum in record array form interpolated on to give wavelength 
-           scale
+    spec : synthesized model (record array with s, serr, w fields)
+
+    History 
+    -------
+    Mar-2014 EAP created
     """
+    
+    tspec = smsyn.smio.getspec_h5(type='cps',obs='rj76.279',wlo=wlo,whi=whi,ord=ord)
+    wav = tspec['w']
 
-    # Select a region just a little bigger than the final segment
-    wrange = w[[0,-1]]
-    wrange[0]-=2
-    wrange[-1]+=2
 
-    if libfull:
-        spec = smio.getmodel(mpar,wrange=wrange)
-    else:
-        spec = getmodel(mpar,wrange=wrange)
-        
-    spec = smio.resamp(spec,w)
+    lib = smsyn.smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho.csv')
+    lib['row'] = range(len(lib))
+
+    lib['dteff'] = np.abs(lib.teff-teff)
+    lib['dlogg'] = np.abs(lib.logg-logg)
+    lib['dfe'] = np.abs(lib.fe-fe)
+
+    teff1,teff2 = lib.sort_values(by='dteff')['teff'].drop_duplicates()[:2]
+    logg1,logg2 = lib.sort_values(by='dlogg')['logg'].drop_duplicates()[:2]
+    fe1,fe2 = lib.sort_values(by='dfe')['fe'].drop_duplicates()[:2]
+
+    corners = itertools.product([teff1,teff2],[logg1,logg2],[fe1,fe2])
+
+    def getcorner(c):
+        return getmodelseg(lib.ix[c],wav)
+#    getcorner = lambda c : getmodelseg(lib.ix[c],w)
+    c = np.vstack( map(getcorner,corners) )
+
+    serr = c[0]['serr']
+    c = c['s']
+    
+    v0 = [teff1, logg1, fe1]
+    v1 = [teff2, logg2, fe2]
+    vi = [teff, logg, fe]
+
+    s = smsyn.smio.trilinear_interp(c,v0,v1,vi)
+    
+    # Broaden with rotational-macroturbulent broadening profile
+    dv = restwav.loglambda_wls_to_dv(wav)
+
+    n = 151 # Correct for VsinI upto ~100 km/s
+
+    # Valenti and Fischer macroturb reln ERROR IN PAPER!!!
+    xi = 3.98 + (teff-5770)/650
+    if xi < 0: 
+        xi = 0 
+    
+    varr,M = kernels.rotmacro(n,dv,xi,vsini)
+    s = nd.convolve1d(s,M) 
+
+
+    # Broaden with PSF (assume gaussian) (km/s)
+    if psf > 0: s = nd.gaussian_filter(s,psf)
+
+    spec = np.rec.fromarrays( [s,serr,wav],names='s serr w'.split() )
     return spec

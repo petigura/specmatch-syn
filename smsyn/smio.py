@@ -4,10 +4,21 @@ from astropy.io import fits
 import numpy as np
 import glob
 from subprocess import Popen, PIPE
+from scipy.io.idl import readsav
+import h5py
 
 from scipy import interpolate
 import cpsutils.kbc
-kbc = cpsutils.kbc.loadkbc()
+from smsyn.conf import kbc
+#from smsyn import coelho
+import smsyn.coelho
+from scipy import ndimage as nd
+
+SM_DIR = os.environ['SM_DIR']
+libh5 = h5py.File("/Users/petigura/Research/SpecMatch/library/coelho_rwav.h5",'r+')
+specarr = libh5['s'][:]
+w = libh5['w'][:]
+serr = np.ones(w.size) * 0.05
 
 
 def get_repo_head_sha():
@@ -59,7 +70,7 @@ def cps_resolve(obs,type):
         except KeyError:
             print "SM_PROJDIR enivornment variable not set. Using SM_DIR"
             d['SM_PROJDIR'] = os.environ['SM_DIR']
-        return "%(SM_PROJDIR)s/output/h5/%(name)s_%(obs)s.h5" % d
+        return "/Users/petigura/Research/SpecMatch/output/h5/%(name)s_%(obs)s.h5" % d
 
     if type=='plotdir':
         try:
@@ -67,13 +78,12 @@ def cps_resolve(obs,type):
         except KeyError:
             print "SM_PROJDIR enivornment variable not set. Using SM_DIR"
             d['SM_PROJDIR'] = os.environ['SM_DIR']
-        return "%(SM_PROJDIR)s/output/plots/" % d
+        return "/Users/petigura/Research/SpecMatch/output/plots/" % d
 
     if type=='nameobs':
         return "%(name)s_%(obs)s" % d
 
-
-def getspec(obs,type='db',npad=100,header=False):
+def getspec_fits(obs,type='db',npad=100,header=False):
     """
     Get Spectrum
 
@@ -113,7 +123,144 @@ def getspec(obs,type='db',npad=100,header=False):
     else:
         return spec
 
-from scipy.io.idl import readsav
+def getspec_h5(**kw):
+    """
+    Get Spectrum.
+
+    Parameters
+    ----------
+    type : 'cps'/'coelho'   
+    ord  : order starting from 0
+    wlo  : lower limit wavelength range
+    whi  : upper limit
+
+    if type is cps:
+      obs  : CPS spectrum ID
+
+    if type is coelho
+      coelho
+      teff
+      logg
+      fe
+      vsini
+      psf
+
+    Returns
+    -------
+    spec : record array with following attributes:
+           s    : Intensity
+           serr : Uncertanty
+           w    : Wavelength
+    """
+
+    wlo = kw['wlo']
+    whi = kw['whi']
+    ord = kw['ord']
+
+    assert kw.keys().count('type')==1,"Must specify type of spectrum"
+
+    assert kw['type']=='coelho' or kw['type']=='cps' ,\
+        "type must be either cps or coelho"
+
+    if kw['type']=='cps':
+        obs = kw['obs']
+        assert obs!=None,"Must specify obs"
+        assert ord!=None,"Must specify order"
+
+        if type(obs) == list and len(obs) > 1:
+            obsL = obs
+            allspec = []
+            allwav = []
+            allerr = []
+            print "Stacking observations:", obsL
+            for ob in obsL:
+                d = dict(kbc.ix[ob])
+                with h5py.File(kbc.ix[ob,'rwpath'],'r') as h5:
+                    allspec.append(h5['rw'][ord,:]['s'])
+                    allwav.append(h5['rw'][ord,:]['w'])
+                    allerr.append(h5['rw'][ord,:]['serr'])
+                    spec = h5['rw'][ord,:]
+            allspec = np.vstack(allspec)
+            allwav = np.mean(np.vstack(allwav), axis=0)
+            allerr = np.mean(np.vstack(allerr), axis=0)
+
+            spec['s'] = clipped_mean(allspec)
+        if type(obs)== list and len(obs)==1:
+            obs = obs[0]
+
+        d = dict(kbc.ix[obs])
+        with h5py.File(kbc.ix[obs,'rwpath'],'r') as h5:
+            spec = h5['rw'][ord,:]
+            
+ 
+    elif kw['type']=='coelho':
+ 
+        with h5py.File(kbc.ix[kw['targobs'],'rwpath'],'r') as h5:
+            spec = h5['rw'][ord,:]
+        spec = getmodelseg(kw,spec['w'])
+        spec['s'] = nd.gaussian_filter1d(spec['s'],0.0)
+
+    if wlo!=None:
+        spec = spec[ (spec['w'] > wlo) & (spec['w'] < whi) ]    
+    return spec
+
+
+def getmodel_h5(mpar,ver=True,wrange=None):
+    """
+    Get model spectrum
+    
+    Parameters
+    ----------
+    mpar : dictionary with following keys:
+    """
+    lib = loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho.csv')
+    lib['row'] = range(len(lib))
+
+    idx = (mpar['teff'],mpar['logg'],mpar['fe'])
+    s = specarr[ lib.ix[idx,'row'] ]
+    
+    spec = np.rec.fromarrays([s,serr,w],names=['s','serr','w'])
+
+    if wrange is None:
+        return spec
+
+    brange = (spec['w'] > wrange[0]) & (spec['w'] < wrange[1])
+    spec = spec[brange]
+    return spec
+
+def getmodelseg(mpar,w, libfull=False):
+    """
+    Get Model Segment
+    
+    Thin wrapper around getmodel. After model is loaded up,
+    interpolate onto `w` wavelength scale
+
+    Parameters
+    ----------
+    mpar : model parameters, passed to getmodel
+    w : wavelength array
+
+    Returns
+    -------
+    spec : spectrum in record array form interpolated on to give wavelength 
+           scale
+    """
+
+    # Select a region just a little bigger than the final segment
+    wrange = w[[0,-1]]
+    wrange[0]-=2
+    wrange[-1]+=2
+
+    if libfull:
+        spec = smsyn.smio.getmodel(mpar,wrange=wrange)
+    else:
+        spec = getmodel_h5(mpar,wrange=wrange)
+        
+    spec = smsyn.smio.resamp(spec,w)
+    return spec
+
+
+
 
 def getwav(ver=False):
     wavpath = "/Users/petigura/Research/SpecMatch/config/keck_rwav.dat"

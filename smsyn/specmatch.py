@@ -11,19 +11,15 @@ import h5py
 from multiprocessing import Pool
 from matplotlib import mlab
 
-from smsyn import smio
-from smsyn import coelho
+import smsyn.smio
+
 from smsyn import rotbro
 from smsyn import fftspecfilt
 from smsyn import h5plus
 from smsyn import pdplus
+from smsyn import coelho
 import cpsutils.kbc
 
-SM_DIR = os.environ['SM_DIR']
-kbc = cpsutils.kbc.loadkbc()
-kbc['h5bname'] = kbc.name+"_"+kbc.obs+".h5"
-kbc['rwpath'] = os.path.join(SM_DIR,"spectra/restwav/")
-kbc['rwpath'] = kbc['rwpath']+ kbc['h5bname']
 
 def get_segdf():
     """
@@ -87,9 +83,9 @@ def coelho_match(obs,snr=None,h5path=None,verbose=True,debug=False,numpro=1):
     Mar 10 2014 : EAP - broke up into several helper functions
 
     """
-    print "Running SpecMatch on %(name)s %(obs)s" % smio.kbc_query(obs)
+    print "Running SpecMatch on %(name)s %(obs)s" % smsyn.smio.kbc_query(obs)
     
-    lib = smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho.csv')
+    lib = smsyn.smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho.csv')
     segdf = get_segdf()
     
     # For debugging
@@ -136,7 +132,7 @@ Running with a paired down library with %i model spectra
     if h5path is not None:
         h5store(h5path,smres,arrL)
         # copy over attributes
-        h5path0 = smio.cps_resolve(obs,'restwav')
+        h5path0 = smsyn.smio.cps_resolve(obs,'restwav')
         h5plus.copy_attrs(h5path0,h5path)
 
     return smres,arrL
@@ -197,10 +193,10 @@ def matchloop(smpar,verbose=True,snr=None):
 
         # Load up target and library spectrum
         kw = smpard
-        libspec = getspec(**kw)
+        libspec = smsyn.smio.getspec_h5(**kw)
 
         kw['type'] = 'cps'
-        targspec = getspec(obs=smpard['targobs'], **kw)
+        targspec = smsyn.smio.getspec_h5(obs=smpard['targobs'], **kw)
 
         if snr!=None:
             np.random.seed(0)
@@ -222,87 +218,6 @@ def matchloop(smpar,verbose=True,snr=None):
     smres = pd.DataFrame(scldL,index=smpar.index)
     smres = pd.concat([smpar.drop('vsini',axis=1),smres],axis=1)
     return smres,arrL
-
-def getspec(**kw):
-    """
-    Get Spectrum.
-
-    Parameters
-    ----------
-    type : 'cps'/'coelho'   
-    ord  : order starting from 0
-    wlo  : lower limit wavelength range
-    whi  : upper limit
-
-    if type is cps:
-      obs  : CPS spectrum ID
-
-    if type is coelho
-      coelho
-      teff
-      logg
-      fe
-      vsini
-      psf
-
-    Returns
-    -------
-    spec : record array with following attributes:
-           s    : Intensity
-           serr : Uncertanty
-           w    : Wavelength
-    """
-
-    wlo = kw['wlo']
-    whi = kw['whi']
-    ord = kw['ord']
-
-    assert kw.keys().count('type')==1,"Must specify type of spectrum"
-
-    assert kw['type']=='coelho' or kw['type']=='cps' ,\
-        "type must be either cps or coelho"
-
-    if kw['type']=='cps':
-        obs = kw['obs']
-        assert obs!=None,"Must specify obs"
-        assert ord!=None,"Must specify order"
-
-        if type(obs) == list and len(obs) > 1:
-            obsL = obs
-            allspec = []
-            allwav = []
-            allerr = []
-            print "Stacking observations:", obsL
-            for ob in obsL:
-                d = dict(kbc.ix[ob])
-                with h5py.File(kbc.ix[ob,'rwpath'],'r') as h5:
-                    allspec.append(h5['rw'][ord,:]['s'])
-                    allwav.append(h5['rw'][ord,:]['w'])
-                    allerr.append(h5['rw'][ord,:]['serr'])
-                    spec = h5['rw'][ord,:]
-            allspec = np.vstack(allspec)
-            allwav = np.mean(np.vstack(allwav), axis=0)
-            allerr = np.mean(np.vstack(allerr), axis=0)
-
-            spec['s'] = clipped_mean(allspec)
-        if type(obs)== list and len(obs)==1:
-            obs = obs[0]
-
-        d = dict(kbc.ix[obs])
-        with h5py.File(kbc.ix[obs,'rwpath'],'r') as h5:
-            spec = h5['rw'][ord,:]
-            
- 
-    elif kw['type']=='coelho':
- 
-        with h5py.File(kbc.ix[kw['targobs'],'rwpath'],'r') as h5:
-            spec = h5['rw'][ord,:]
-        spec = coelho.getmodelseg(kw,spec['w'])
-        spec['s'] = nd.gaussian_filter1d(spec['s'],0.0)
-
-    if wlo!=None:
-        spec = spec[ (spec['w'] > wlo) & (spec['w'] < whi) ]    
-    return spec
 
 
 def getfom(tspec,lspec,vsini=None):
@@ -394,7 +309,7 @@ def h5store(h5path,smres,arrL,ntop=20):
 
             h5.create_dataset('%s/smres' % wlo,data=gsmres)
         h5.attrs['specmatch_stop_time'] = strftime("%Y-%m-%d %H:%M:%S")
-        h5.attrs['specmatch_sha'] = smio.get_repo_head_sha()
+        h5.attrs['specmatch_sha'] = smsyn.smio.get_repo_head_sha()
 
 
 def splitsegs(smres,arrL,narr=20):

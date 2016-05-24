@@ -41,3 +41,22 @@ def df_to_ndarray(df):
     res = np.rec.fromarrays(arrayList,names=list(df.columns))
     res = np.array(res)
     return res  
+
+
+def string_to_df(s):
+    """
+    String to DataFrame
+
+    A little convienence function to make a data frame from space-
+    separated string.
+
+    Tables fields are separated by a space, and can be commented out with a #
+
+    wlo   whi   ord
+    4980  5060  0
+    5055  5130  1
+    #5125  5205  2
+    """
+    df = pd.read_table(StringIO(s),comment='#',sep='\s*',engine='python')
+    df = df.dropna()
+    return df

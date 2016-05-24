@@ -35,7 +35,7 @@ def obs2h5(obs, dbtype='db'):
     kbcd = smio.kbc_query(obs)
     outpath = smio.cps_resolve(obs,'restwav')
     with h5plus.File(outpath) as h5:
-        spec,header = smio.getspec(obs,type=dbtype,npad=0,header=True)
+        spec,header = smio.getspec_fits(obs,type=dbtype,npad=0,header=True)
         h5['db'] = spec
         header = dict(header,**kbcd)
         h5plus.dict_to_attrs(h5,header)
@@ -75,7 +75,7 @@ def fitdvh5(obs, dbtype='db'):
         sl = slice(nclip,npix-nclip)
         specrw = h5['db'][:,sl].copy()
 
-        fullspec = smio.getspec(obs,type=dbtype,npad=0)
+        fullspec = smio.getspec_fits(obs,type=dbtype,npad=0)
         for order in range(nord):
             # Intitial guess wavelength clip off the edges, so I'm not
             # interpolating outside the limits of the spectrum
@@ -99,7 +99,7 @@ def fitdvh5(obs, dbtype='db'):
 def coelhomatch(obs,dbtype='db'):
     par = smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho_restwav.csv')
 
-    fullspec = smio.getspec(obs,type=dbtype)
+    fullspec = smio.getspec_fits(obs,type=dbtype)
     par['ccfmax'] = 0
     for i in par.index:
         p = par.ix[i]
@@ -205,7 +205,7 @@ def segdv(obs,mpar,plotdiag=False,dbtype='db'):
     vshift : nord x nseg array with the velocity shifts for each segment.
     """
     
-    fullspec = spec = smio.getspec(obs,type=dbtype)
+    fullspec = spec = smio.getspec_fits(obs,type=dbtype)
     vshift = np.zeros((nord,nseg))
     for order in range(nord):
         for iseg in range(nseg):

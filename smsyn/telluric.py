@@ -45,7 +45,7 @@ def telluric_psf(obs,plot=False,plot_med=False):
     """
     
     # Load spectral region and prep.
-    spec = smio.getspec(obs=obs)[14]
+    spec = smio.getspec_fits(obs=obs)[14]
     spec = spec[(spec['w'] > 6270) & (spec['w'] < 6305)]
     spec['s'] /= continuum.cfit(spec)
 
@@ -212,3 +212,32 @@ def telluric_comb(sig,wls0,wls1,w,wcen,s=None,darr=None):
 def gaussian(x, A, x0, sig):
     val = A * np.exp(-(x - x0)**2 / 2. / sig**2)
     return val
+
+
+def psf_prior(sig,deckname):
+    """
+    If the fits to the telluric lines are really bad, the sigma could
+    potentially be way off. This little function implements a prior.
+    """
+
+    # Format is (lower limit, upper limit, center)
+    s = """\
+deckname low high  prior
+B5       1.6 2.0   1.8
+C2       1.6 2.0   1.8
+B1       1.4 1.7   1.55
+B3       1.4 1.7   1.55   
+E2       1.1 1.4   1.25"""
+
+    df = pdplus.string_to_df(s)
+    df.index=df.deckname
+
+    d = df.ix[deckname]
+    
+    sig_in_range = (sig > d['low']) & (sig < d['high'])
+    if ~sig_in_range:
+        sig = d['prior']
+
+    return sig
+
+
