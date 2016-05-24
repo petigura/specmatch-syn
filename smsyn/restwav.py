@@ -55,7 +55,7 @@ def segdvh5(obs,**kwargs):
     outpath = smio.cps_resolve(obs,'restwav')
 
     par = coelhomatch(obs,dbtype=kwargs['dbtype'])
-    mpar = dict(par.sort('ccfmax').iloc[-1])
+    mpar = dict(par.sort_values(by='ccfmax').iloc[-1])
     mpar['name'] = d['name']    
     print "%(name)s best match: teff = %(teff)i; logg = %(logg).1f" % mpar
     with h5plus.File(outpath) as h5:

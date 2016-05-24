@@ -51,3 +51,17 @@ class File(h5py.File):
 def dict_to_attrs(h5,d):
    for k in d.keys():
       h5.attrs[k] = d[k]
+
+
+def copy_attrs(h5path0,h5path):
+   """
+   Copy top-level attributes from h5path0 to h5path
+
+   Parameters
+   ----------
+   h5path0 : original h5 file
+   h5path : new h5file
+   """
+   with h5py.File(h5path0,'r') as h50:
+      with h5py.File(h5path) as h5:
+         dict_to_attrs(h5,dict(h50.attrs))

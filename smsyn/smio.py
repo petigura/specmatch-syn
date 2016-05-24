@@ -252,8 +252,7 @@ def getmodelseg(mpar,w):
     spec = resamp(spec,w)
     return spec
 
-
-def getmodel(mpar,ver=True,wrange=None):
+def getmodel(mpar, ver=True, wrange=None):
     """
     Get model spectrum
     
@@ -297,9 +296,11 @@ def getmodel(mpar,ver=True,wrange=None):
     serr = np.ones(w.size) * 0.05
 
     spec = np.rec.fromarrays([s,serr,w],names=['s','serr','w'])
-    if wrange!=None:
-        brange = (spec['w'] > wrange[0]) & (spec['w'] < wrange[1])
-        spec = spec[brange]
+    if wrange is None:
+        return spec
+
+    brange = (spec['w'] > wrange[0]) & (spec['w'] < wrange[1])
+    spec = spec[brange]
     return spec
 
 
