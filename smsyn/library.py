@@ -37,7 +37,7 @@ class Library(object):
     header_required_keys = ['model_name', 'model_reference']
     def __init__(self, header, model_table, wavelength, model_spectra):
         for key in header_required_keys:
-            assert key is in header.keys(), "{} required in header".format(key)
+            assert key in header.keys(), "{} required in header".format(key)
 
         self.header = header
         self.model_table = model_table
