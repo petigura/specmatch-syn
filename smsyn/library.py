@@ -6,10 +6,11 @@ This module defines the Library object used for specmatch-synth
 """
 
 import numpy as np
+import pandas as pd
 import h5py
 
 
-class Library:
+class Library(object):
     """The Library object
 
     This object handles reading the model grid and associating the models with
@@ -35,11 +36,11 @@ class Library:
     """
     header_required_keys = ['model_name', 'model_reference']
     def __init__(self, header, model_table, wavelength, model_spectra):
-        for key in header_required_keys:
-            assert key is in header.keys(), "Key required in model header: %s" % key
+        for key in self.header_required_keys:
+            assert key in header.keys(), "Key required in model header: %s" % key
 
         self.header = header
-        self.model_table
+        self.model_table = model_table
         self.wavelength = wavelength
         self.model_spectra = model_spectra
 
@@ -60,28 +61,38 @@ class Library:
             h5['model_spectra'] = self.model_spectra
             h5['wavelength'] = self.wavelength
         
-    def from_hdf(self, filename):
-        """Read model library grid
-
-        Read in a model library grid from an h5 file.
-
-        Args:
-            filename (string): path to h5 file that contains the grid
-                of stellar atmosphere models
         
-        """
-
-        
-        
-        pass
 
     def synth(self, wav, teff, logg, fe, vsini, psf, interp_mode='trilinear'):
         """Synthesize a model spectrum
 
         Interpolate between points in the model grid
-               and synthesize a spectral region for a given
-               set of stellar parameters.
-        
+        and synthesize a spectral region for a given
+        set of stellar parameters.
+        """
         pass
 
     
+def from_hdf(filename):
+    """Read model library grid
+
+    Read in a model library grid from an h5 file and initialze a Library object.
+
+    Args:
+        filename (string): path to h5 file that contains the grid
+            of stellar atmosphere models
+
+    Returns:
+        Library object
+        
+    """
+    
+    with h5py.File(filename,'r') as h5:
+        header = dict(h5.attrs)
+        model_table = pd.DataFrame.from_records(h5['model_table'][:])
+        wavelength = h5['wavelength']
+        model_spectra = h5['model_spectra']
+
+    lib = Library(header, model_table, wavelength, model_spectra)
+
+    return lib
