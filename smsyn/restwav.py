@@ -2,9 +2,9 @@ import numpy as np
 from numpy import ma
 from scipy.stats import nanstd, nanmean, nanmedian
 
-from smsyn import smio
 from smsyn import h5plus
 from smsyn import ccs
+import smsyn.smio
 
 from time import strftime
 
@@ -32,13 +32,14 @@ def restwav(obs):
     fitdvh5(obs, dbtype=dbtype)
     
 def obs2h5(obs, dbtype='db'):
-    kbcd = smio.kbc_query(obs)
-    outpath = smio.cps_resolve(obs,'restwav')
+    kbcd = smsyn.smio.kbc_query(obs)
+    outpath = smsyn.smio.cps_resolve(obs,'restwav')
     with h5plus.File(outpath) as h5:
-        spec,header = smio.getspec_fits(obs,type=dbtype,npad=0,header=True)
+        spec,header = smsyn.smio.getspec_fits(obs,type=dbtype,npad=0,header=True)
         h5['db'] = spec
         header = dict(header,**kbcd)
         h5plus.dict_to_attrs(h5,header)
+
 def segdvh5(obs,**kwargs):
     """
     Segment Velocity Shift HDF5 wrapper
@@ -51,8 +52,8 @@ def segdvh5(obs,**kwargs):
     obs : CPS identifier
     kwargs : keyword arguments are passed to segdv
     """
-    d = smio.kbc_query(obs)
-    outpath = smio.cps_resolve(obs,'restwav')
+    d = smsyn.smio.kbc_query(obs)
+    outpath = smsyn.smio.cps_resolve(obs,'restwav')
 
     par = coelhomatch(obs,dbtype=kwargs['dbtype'])
     mpar = dict(par.sort_values(by='ccfmax').iloc[-1])
@@ -65,7 +66,7 @@ def segdvh5(obs,**kwargs):
 
 
 def fitdvh5(obs, dbtype='db'):
-    outpath = smio.cps_resolve(obs,'restwav')
+    outpath = smsyn.smio.cps_resolve(obs,'restwav')
     with h5plus.File(outpath) as h5:
         print "saving to %s " % outpath
         shift = h5['shift'][:]
@@ -75,31 +76,31 @@ def fitdvh5(obs, dbtype='db'):
         sl = slice(nclip,npix-nclip)
         specrw = h5['db'][:,sl].copy()
 
-        fullspec = smio.getspec_fits(obs,type=dbtype,npad=0)
+        fullspec = smsyn.smio.getspec_fits(obs,type=dbtype,npad=0)
         for order in range(nord):
             # Intitial guess wavelength clip off the edges, so I'm not
             # interpolating outside the limits of the spectrum
 
             spec = fullspec[order]
-            spec = smio.loglambda(spec)
+            spec = smsyn.smio.loglambda(spec)
 
             specrest = spec.copy()
             dlam = dv[order] / speed_of_light * specrest['w']
             specrest['w'] -= dlam # Change wavelengths to the rest wavelengths
 
             # Interpolate back onto conveinent grid
-            specrw[order] = smio.resamp(specrest,spec['w'][sl])
+            specrw[order] = smsyn.smio.resamp(specrest,spec['w'][sl])
 
         h5['rw'] = specrw
         h5.attrs['restwav_stop_time'] = strftime("%Y-%m-%d %H:%M:%S")
-        h5.attrs['restwav_sha'] = smio.get_repo_head_sha()
+        h5.attrs['restwav_sha'] = smsyn.smio.get_repo_head_sha()
 
 
 
 def coelhomatch(obs,dbtype='db'):
-    par = smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho_restwav.csv')
+    par = smsyn.smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho_restwav.csv')
 
-    fullspec = smio.getspec_fits(obs,type=dbtype)
+    fullspec = smsyn.smio.getspec_fits(obs,type=dbtype)
     par['ccfmax'] = 0
     for i in par.index:
         p = par.ix[i]
@@ -108,8 +109,8 @@ def coelhomatch(obs,dbtype='db'):
         sl = slice(1500,3000)  # template works best
 
         spec = fullspec[order,sl]
-        spec = smio.loglambda(spec)
-        model = smio.getmodelseg(p,spec['w'])
+        spec = smsyn.smio.loglambda(spec)
+        model = smsyn.smio.getmodelseg(p,spec['w'])
 
         vma,xcorrma = velocityshift(model,spec)
         par.ix[i,'ccfmax'] = xcorrma
@@ -205,15 +206,15 @@ def segdv(obs,mpar,plotdiag=False,dbtype='db'):
     vshift : nord x nseg array with the velocity shifts for each segment.
     """
     
-    fullspec = spec = smio.getspec_fits(obs,type=dbtype)
+    fullspec = spec = smsyn.smio.getspec_fits(obs,type=dbtype)
     vshift = np.zeros((nord,nseg))
     for order in range(nord):
         for iseg in range(nseg):
             sl = slice(start[iseg],stop[iseg])
 
             spec = fullspec[order,sl]
-            spec = smio.loglambda(spec)
-            model = smio.getmodelseg(mpar,spec['w'])
+            spec = smsyn.smio.loglambda(spec)
+            model = smsyn.smio.getmodelseg(mpar,spec['w'])
 
             vma,xcorrma = velocityshift(model,spec,plotdiag=plotdiag)
             print order,start[iseg], vma

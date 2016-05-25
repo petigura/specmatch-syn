@@ -318,7 +318,6 @@ def loadlibrary(libfile):
     lib = pd.read_csv(libfile)
     lib.index = lib.groupby('teff logg fe'.split(),as_index=True).first().index
     return lib
-
 def loglambda(spec0):
     """
     Resample spectrum onto a constant log-lambda wavelength scale
