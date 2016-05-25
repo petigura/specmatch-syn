@@ -21,7 +21,7 @@ class Library(object):
             'model_name' and 'model_reference' are the only required keys.
             (e.g. {'model_name': 'coelho05', 'model_reference': 'Coelho et al. (2005)'})
         model_table (DataFrame): Pandas DataFrame with the following columns:
-            teff, logg, fe, model_index. The model_index column should give the index
+            model_index, teff, logg, fe. The model_index column should give the index
             to the model spectrum in the `model_spectra` array that is
             associated with the given parameters.
         wavelength (array): 1-d vector containng the wavelength scale for the model
