@@ -38,6 +38,10 @@ class Library(object):
         model_spectra (array): array containing all model spectra
             ordered so that the they can be referenced by the indicies
             contained in the `model_table`.
+
+        wavlim (2-element iterable): (optional) list, tuple, or other 2-element
+            itarable that contains the upper and lower wavelengths limits to be read
+            into memory
     """
     header_required_keys = ['model_name', 'model_reference']
     target_chunk_bytes = 100e3 # Target number of bytes are per hdf chunk
