@@ -111,157 +111,59 @@ def coelhomatch(obs,dbtype='db'):
 
     return par
 
-def velocityshift(model, spec, plotdiag=False):
+
+class VelocityShift(object):
+    """Velocity Shift
+
+    Determine pixel-by-pixel velocity shifts
+
+    Args:
+        vshift (array): Array of shape `(nord, nseg)` with velocity shifts
+        pix (array): Array of shape `(nseg)` with the pixel number of the
+            center of each segment
     """
-    Find the velocity shift between two spectra. 
-    
-    Velocity means `spec` is red-shifted with respect to model
-    """
+    def __init__(self, nord, npix, pixmid, vshift):
+        self.nord = nord
+        self.npix = npix
+        self.pixmid = pixmid
+        self.vshift = vshift
 
-    dv = loglambda_wls_to_dv(spec['w'])
-    assert (model['w']==spec['w']).all(),"wavelength arrays must be same"
+    def caculate_dvel(self,method='global'):
+        """Calculate pixel-by-pixel velocity shift
 
-    dv = (spec['w'][1:] - spec['w'][:-1])/(spec['w'][1:]) * speed_of_light
-    mdv = np.mean(dv)
-    assert dv.ptp() / mdv < 1e-6,"wavelengths must be log-lambda"
-    dv = mdv
-
-    modelms = model['s'] - np.mean(model['s']) # Model, mean subtracted.
-    specms = spec['s'] - np.mean(spec['s']) # Model, mean subtracted.
-    npix = model['w'].size
-
-    xcorr = np.correlate(modelms,specms,mode='full')
-    # Negative lag means `spec` had to be blue-shifted in order to
-    # line up therefole the spectrum is redshifted with respect
-    # `model`
-
-    lag = np.arange(-npix+1,npix) 
-    v = -1*lag*dv
-
-    vma, xcorrma = ccs.findpeak(v,xcorr,ymax=True)
-
-    if plotdiag:
-        # Figure bookkeeping
-        fig = gcf()
-        clf()
-        gs = GridSpec(1,10)
-
-        axL = [fig.add_subplot(g) for g in [gs[0:8], gs[-1]]]
-#        axL = [fig.add_subplot(211),fig.add_subplot(212)]
-        gcf().set_tight_layout(True)
-
-        sca(axL[0])
-        plot(model['w'],model['s'])
-        plot(spec['w'],spec['s'])
-
-        sca(axL[1])
-        vrange = (-100,100)
-        b = (v > vrange[0]) & (v < vrange[1])
-        plot(v[b],xcorr[b])
-
-        savefig('dv_%f.png' % mdv)
-        draw()
-        show()
+        """
+        if method=='global':
+            return self._calculate_dvel_global()
         
-    return vma,xcorrma
+    def _calculate_dvel_global(self):
+        """
+        Assume that all orders have a constant dvel at a given pixel. The
+        average value of the dvel for each value is used as the global
+        dvel. We interpolate between the segment centers using a
+        linear model.
+        """
 
-def loglambda_wls_to_dv(w, nocheck=True):
-    """
-    Checks that spectrum is on a constant loglambda wavelength
-    scale. Then, returns dv
-    """
-    dv = (w[1:] - w[:-1])/(w[1:]) * speed_of_light
-    mdv = np.mean(dv)
-    if not nocheck: assert dv.ptp() / mdv < 1e-6,"wavelengths must be log-lambda"
-    dv = mdv
-    return dv
+        # threshold (units of MAD) to throw out shifts 
+        sigclip = 5 
+        vshift = self.vshift.copy()
+        med = np.median(vshift)
+        mad = np.median(np.abs(vshift - med))
+        bout = np.abs(vshift - med) > sigclip*mad
+        vshift = ma.masked_array(vshift,bout)
 
+        vshift = ma.mean(vshift, axis=0)
+        vshift = vshift.compressed()
 
-def segdv(obs,mpar,plotdiag=False,dbtype='db'):
-    """
-    Segment Velocity Shift
+        if np.std(vshift) > 25:
+            print "WARNING: velocity shifts not well determined"
+            vshift *= 0
 
-    For each order, compute the velocity shift between the coelho
-    models and HIRES spectra.
+        pix = np.arange(self.npix)
+        pfit = np.polyfit(self.pixmid,vshift,1)
 
-    Parameters
-    ----------
-    obs : CPS identifier
-    mpar : model parameters (passed to getmodelseg)
-    diagplot : diagnostic plot
-
-    Returns 
-    -------
-    vshift : nord x nseg array with the velocity shifts for each segment.
-    """
-    
-    fullspec = spec = smsyn.smio.getspec_fits(obs,type=dbtype)
-    import pdb;pdb.set_trace();
-
-    vshift = np.zeros((nord,nseg))
-
-    # array indecies associated with different segments 
-    idx_segments = np.array_split(np.arange(npix), nsegments)
-
-    for order in range(nord):
-        for iseg in range(nseg):
-            
-
-            i_segments
-            sl = slice(start[iseg],stop[iseg])
-
-            spec = fullspec[order,sl]
-            spec = smsyn.smio.loglambda(spec)
-            model = smsyn.smio.getmodelseg(mpar,spec['w'])
-
-            vma, xcorrma = velocityshift(model, spec, plotdiag=plotdiag)
-            print order,start[iseg], vma
-            vshift[order,iseg] = vma
-
-    return vshift
-
-def fitdv(vshift):
-    """
-    Fit velocity shift
-    
-    Mask out dv's that are large outliers with respect to the rest of
-    the segments. The overall WLS is determed by averaging the shift
-    amounts across diffent orders.
-
-    Parameters
-    ----------
-    vshift : nord x nseg array with shifts for each segment,
-
-    Returns
-    -------
-    dv : shift in velocity for all pixels.
-
-    """
-
-    sigclip = 5 # threshold (units of MAD) to throw out shifts 
-    med = nanmedian(vshift)
-    mad = nanmedian(np.abs(vshift -med))
-    bout = np.abs(vshift - med) > sigclip*mad
-
-    vshift = ma.masked_array(vshift,bout)
-    dv = np.zeros((nord,npix))
-    pix = np.arange(npix)
-    
-    vshifto = ma.mean(vshift, axis=0)
-    x = mid[~vshifto.mask]
-    y = vshifto.compressed()
-
-    if np.std(y) > 25:
-        print "WARNING: velocity shifts not well determined"
-        y *= 0
-    
-    np.set_printoptions(precision=2)
-    print "mid pix",x
-    print "dv km/s",y
-
-    pfit = np.polyfit(x,y,1)
-    dv += np.polyval(pfit,pix)
-    return dv
+        dvel = np.zeros((self.nord,self.npix)) 
+        dvel += np.polyval(pfit,pix)[np.newaxis,:]
+        return dvel
 
 
 def shift_echelle_spectrum(wav, flux, ref_wav, ref_flux, nseg=8, uflux=None):
@@ -311,21 +213,99 @@ def shift_echelle_spectrum(wav, flux, ref_wav, ref_flux, nseg=8, uflux=None):
 
     nord, npix = wav.shape
     nref_wav = ref_flux.shape[0]
-
     vshift = np.zeros( (nord, nseg) )
 
     # array indecies associated with different segments 
     pix_segs = np.array_split(np.arange(npix), nseg)
+    pixmid = np.array([int(np.mean(x)) for x in pix_segs])
 
+    print "Calculating shifts order by order"
     for i_order in range(nord):
         for i_seg in range(nseg):
             i_pix = pix_segs[i_seg]
             wav_seg = wav[i_order,i_pix]
             flux_seg = flux[i_order,i_pix]
-            vshift[i_order,i_seg] = velocityshift2(wav_seg, flux_seg, ref_wav,ref_flux)
+            vshift[i_order,i_seg] = velocityshift(
+                wav_seg, flux_seg, ref_wav,ref_flux
+                )
+
+    print_vshift(vshift)
+
+    velshift = VelocityShift(wav.shape[0], wav.shape[1], pixmid, vshift)
+    dvel = velshift.caculate_dvel(method='global')
+    wav_refscaleL = []
+    flux_refscaleL = []
+    for i_order in range(nord):
+        # Intitial guess wavelength clip off the edges, so I'm not
+        # interpolating outside the limits of the spectrum
+
+        # Calculate the change in wavelength to the model
+        # Change wavelengths to the rest wavelengths
+        dlam = dvel[i_order] / speed_of_light * wav[i_order]
+        wav_refscale = wav[i_order] - dlam 
+
+        spline = InterpolatedUnivariateSpline(wav_refscale, flux[i_order])
+
+        b = (wav_refscale[0] < ref_wav) & (ref_wav < wav_refscale[-1])
+        flux_refscale = spline(ref_wav[b])
+
+        wav_refscaleL.append(ref_wav[b])
+        flux_refscaleL.append(flux_refscale)
+
+    return wav_refscaleL, flux_refscaleL
+
+
+
+def fitdvh5(obs, dbtype='db'):
+    outpath = smsyn.smio.cps_resolve(obs,'restwav')
+    with h5plus.File(outpath) as h5:
+        print "saving to %s " % outpath
+        shift = h5['shift'][:]
+        dv = fitdv( h5['shift']['v'] ) 
+
+        nclip = 200
+        sl = slice(nclip,npix-nclip)
+        specrw = h5['db'][:,sl].copy()
+
+        fullspec = smsyn.smio.getspec_fits(obs,type=dbtype,npad=0)
+        for order in range(nord):
+            # Intitial guess wavelength clip off the edges, so I'm not
+            # interpolating outside the limits of the spectrum
+
+            spec = fullspec[order]
+            spec = smsyn.smio.loglambda(spec)
+
+            specrest = spec.copy()
+            dlam = dv[order] / speed_of_light * specrest['w']
+            specrest['w'] -= dlam # Change wavelengths to the rest wavelengths
+
+            # Interpolate back onto conveinent grid
+
+
+            specrw[order] = smsyn.smio.resamp(specrest,spec['w'][sl])
+
+        h5['rw'] = specrw
+        h5.attrs['restwav_stop_time'] = strftime("%Y-%m-%d %H:%M:%S")
+        h5.attrs['restwav_sha'] = smsyn.smio.get_repo_head_sha()
+
+
+
+
+
+
+
+
 
     return vshift
 
+
+def print_vshift(vshift):
+    for i_order in range(nord):
+        outstr = ["{:.2f}".format(v) for v in vshift[i_order]]
+        outstr = " ".join(outstr)
+        outstr = "order {:2d} ".format(i_order) + outstr
+        print outstr
+    
 
 def loglambda(wav0, flux0):
     """Resample spectrum onto a constant log-lambda wavelength scale
@@ -348,7 +328,7 @@ def loglambda(wav0, flux0):
     dvel = np.mean(dvel)
     return wav, flux, dvel
 
-def velocityshift2(wav, flux, ref_wav, ref_flux, plot=False):
+def velocityshift(wav, flux, ref_wav, ref_flux, plot=False):
     """
     Find the velocity shift between two spectra. 
 
