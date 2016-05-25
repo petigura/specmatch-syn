@@ -3,8 +3,12 @@ import os
 
 import h5py
 import numpy as np
+from scipy import ndimage as nd
+
 
 import smsyn.smio
+import smsyn.restwav
+import smsyn.kernels
 #import smsyn.specmatch
 
 
@@ -38,7 +42,6 @@ def coelho_synth(teff,logg,fe,vsini,psf,wlo=None,whi=None,ord=None,obtype='cps',
     -------
     Mar-2014 EAP created
     """
-    
     tspec = smsyn.smio.getspec_h5(type='cps',obs='rj76.279',wlo=wlo,whi=whi,ord=ord)
     wav = tspec['w']
 
@@ -57,7 +60,7 @@ def coelho_synth(teff,logg,fe,vsini,psf,wlo=None,whi=None,ord=None,obtype='cps',
     corners = itertools.product([teff1,teff2],[logg1,logg2],[fe1,fe2])
 
     def getcorner(c):
-        return getmodelseg(lib.ix[c],wav)
+        return smsyn.smio.getmodelseg(lib.ix[c],wav)
 #    getcorner = lambda c : getmodelseg(lib.ix[c],w)
     c = np.vstack( map(getcorner,corners) )
 
@@ -68,10 +71,10 @@ def coelho_synth(teff,logg,fe,vsini,psf,wlo=None,whi=None,ord=None,obtype='cps',
     v1 = [teff2, logg2, fe2]
     vi = [teff, logg, fe]
 
-    s = smsyn.smio.trilinear_interp(c,v0,v1,vi)
+    s = trilinear_interp(c,v0,v1,vi)
     
     # Broaden with rotational-macroturbulent broadening profile
-    dv = restwav.loglambda_wls_to_dv(wav)
+    dv = smsyn.restwav.loglambda_wls_to_dv(wav)
 
     n = 151 # Correct for VsinI upto ~100 km/s
 
@@ -80,7 +83,7 @@ def coelho_synth(teff,logg,fe,vsini,psf,wlo=None,whi=None,ord=None,obtype='cps',
     if xi < 0: 
         xi = 0 
     
-    varr,M = kernels.rotmacro(n,dv,xi,vsini)
+    varr,M = smsyn.kernels.rotmacro(n,dv,xi,vsini)
     s = nd.convolve1d(s,M) 
 
 
@@ -89,3 +92,34 @@ def coelho_synth(teff,logg,fe,vsini,psf,wlo=None,whi=None,ord=None,obtype='cps',
 
     spec = np.rec.fromarrays( [s,serr,wav],names='s serr w'.split() )
     return spec
+
+
+
+def trilinear_interp(c,v0,v1,vi):
+    """
+    Trilinear interpolation
+
+    http://en.wikipedia.org/wiki/Trilinear_interpolation
+
+    Parameters
+    ----------
+    C : 8 x n array where C each row of C corresponds to the value at one corner
+    v0 : length 3 array with the origin
+    v1 : length 3 array with coordinates on the diagonal
+    vi : length 3 specifying the interpolated coordinates
+    """
+
+    v0 = np.array(v0) 
+    v1 = np.array(v1) 
+    vi = np.array(vi) 
+
+    vd = (vi-v0)/(v1-v0) # fractional distance between grid points
+
+    cx0 = c[:4] # function at x0
+    cx1 = c[4:] # function at x1
+
+    cix = cx0 * (1-vd[0]) +  cx1 * vd[0]
+    cixy = cix[:2] * (1-vd[1]) +  cix[2:] * vd[1]
+    cixyz = cixy[0] * (1-vd[2]) +  cixy[1] * vd[2]
+    return cixyz
+

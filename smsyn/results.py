@@ -9,6 +9,9 @@ from smsyn import smio
 from smsyn import continuum
 from smsyn import specmatch
 from smsyn import coelho
+from smsyn import fftspecfilt
+from smsyn import wlmask
+from smsyn import pdplus
 
 def getpars_lincomb(h5file,group,usemask=True,plot=False,outtext=False):
     """
@@ -65,7 +68,8 @@ def getpars_lincomb(h5file,group,usemask=True,plot=False,outtext=False):
     mask = np.zeros(w.size).astype(bool)
     
     if usemask:
-        dfmask = wlmask.loadmask()
+        maskpath='/Users/petigura/Research/SpecMatch/config/wav_mask.csv'
+        dfmask = wlmask.loadmask(maskpath=maskpath)
         mask = wlmask.getmask(w,dfmask,mode='exclude')
 
         #print "Group %i masking out %i pixels" % (group, mask.sum())
@@ -185,6 +189,7 @@ def getpars_polish(targd,par0,h5=None,usemask=True,snr=None,ret0=False):
         Wrapper around coelho_synth that produces a model at each wavelength
         region
         """
+
         teff = params['teff'].value
         logg = params['logg'].value
         fe = params['fe'].value
@@ -229,7 +234,8 @@ def getpars_polish(targd,par0,h5=None,usemask=True,snr=None,ret0=False):
         # Add in mask if it exists
         mask = np.zeros(tspec['s'].size).astype(bool)
         if usemask:
-            dfmask = wlmask.loadmask()
+            maskpath='/Users/petigura/Research/SpecMatch/config/wav_mask.csv'
+            dfmask = wlmask.loadmask(maskpath=maskpath)
             dfmask_clip = wlmask.specmask(tspec) # outlier rejection
 
             # Ignore index prevents multiple regions from having the same index
@@ -252,7 +258,7 @@ def getpars_polish(targd,par0,h5=None,usemask=True,snr=None,ret0=False):
         return residuals(params)
 
     # If ftol is 1e-2, carver and my laptop give different answers ~80 K level.
-    out = minimize(residuals,params,ftol=1e-8)
+    out = lmfit.minimize(residuals,params,ftol=1e-8)
     mspecL = model_list(out.params)
 
     outpars = {}
