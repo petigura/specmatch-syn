@@ -318,6 +318,7 @@ def loadlibrary(libfile):
     lib = pd.read_csv(libfile)
     lib.index = lib.groupby('teff logg fe'.split(),as_index=True).first().index
     return lib
+
 def loglambda(spec0):
     """
     Resample spectrum onto a constant log-lambda wavelength scale
@@ -365,7 +366,6 @@ def spline(xi,xp,fp):
     Convenience standin for dspline
     """
     # (Cubic) spline back onto original wavelength scale.
-    
     tck     = interpolate.splrep(xp,fp)
     return  interpolate.splev(xi,tck)
 

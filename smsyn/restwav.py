@@ -7,18 +7,9 @@ from smsyn import ccs
 import smsyn.smio
 
 from time import strftime
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 speed_of_light = 2.99792e5 # Speed of light [km/s] 
-
-nord = 16
-nseg = 7
-segsize = 1000
-segstep = 500
-
-mid = np.arange(nseg)*segstep + segsize/2.
-start = np.arange(nseg)*segstep
-stop = start+segsize
-npix = 4021
 
 def restwav(obs):
     if obs.startswith('ra'): dbtype = 'apf'
@@ -32,6 +23,10 @@ def restwav(obs):
     fitdvh5(obs, dbtype=dbtype)
     
 def obs2h5(obs, dbtype='db'):
+    """
+    Simply loads up the file from a given obs and shoves it into an h5 file.
+    """
+
     kbcd = smsyn.smio.kbc_query(obs)
     outpath = smsyn.smio.cps_resolve(obs,'restwav')
     with h5plus.File(outpath) as h5:
@@ -39,6 +34,7 @@ def obs2h5(obs, dbtype='db'):
         h5['db'] = spec
         header = dict(header,**kbcd)
         h5plus.dict_to_attrs(h5,header)
+
 
 def segdvh5(obs,**kwargs):
     """
@@ -60,7 +56,7 @@ def segdvh5(obs,**kwargs):
     mpar['name'] = d['name']    
     print "%(name)s best match: teff = %(teff)i; logg = %(logg).1f" % mpar
     with h5plus.File(outpath) as h5:
-        v = segdv(obs,mpar,**kwargs)
+        v = segdv(obs, mpar, **kwargs)
         pix = np.vstack([mid]*v.shape[0])
         h5['shift'] = np.rec.fromarrays([v,pix],names=['v','mid'])
 
@@ -72,7 +68,7 @@ def fitdvh5(obs, dbtype='db'):
         shift = h5['shift'][:]
         dv = fitdv( h5['shift']['v'] ) 
 
-        nclip=200
+        nclip = 200
         sl = slice(nclip,npix-nclip)
         specrw = h5['db'][:,sl].copy()
 
@@ -95,8 +91,6 @@ def fitdvh5(obs, dbtype='db'):
         h5.attrs['restwav_stop_time'] = strftime("%Y-%m-%d %H:%M:%S")
         h5.attrs['restwav_sha'] = smsyn.smio.get_repo_head_sha()
 
-
-
 def coelhomatch(obs,dbtype='db'):
     par = smsyn.smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho_restwav.csv')
 
@@ -117,10 +111,7 @@ def coelhomatch(obs,dbtype='db'):
 
     return par
 
-
-
-
-def velocityshift(model,spec,plotdiag=False):
+def velocityshift(model, spec, plotdiag=False):
     """
     Find the velocity shift between two spectra. 
     
@@ -147,7 +138,7 @@ def velocityshift(model,spec,plotdiag=False):
     lag = np.arange(-npix+1,npix) 
     v = -1*lag*dv
 
-    vma,xcorrma = ccs.findpeak(v,xcorr,ymax=True)
+    vma, xcorrma = ccs.findpeak(v,xcorr,ymax=True)
 
     if plotdiag:
         # Figure bookkeeping
@@ -173,8 +164,6 @@ def velocityshift(model,spec,plotdiag=False):
         show()
         
     return vma,xcorrma
-
-
 
 def loglambda_wls_to_dv(w, nocheck=True):
     """
@@ -207,16 +196,25 @@ def segdv(obs,mpar,plotdiag=False,dbtype='db'):
     """
     
     fullspec = spec = smsyn.smio.getspec_fits(obs,type=dbtype)
+    import pdb;pdb.set_trace();
+
     vshift = np.zeros((nord,nseg))
+
+    # array indecies associated with different segments 
+    idx_segments = np.array_split(np.arange(npix), nsegments)
+
     for order in range(nord):
         for iseg in range(nseg):
+            
+
+            i_segments
             sl = slice(start[iseg],stop[iseg])
 
             spec = fullspec[order,sl]
             spec = smsyn.smio.loglambda(spec)
             model = smsyn.smio.getmodelseg(mpar,spec['w'])
 
-            vma,xcorrma = velocityshift(model,spec,plotdiag=plotdiag)
+            vma, xcorrma = velocityshift(model, spec, plotdiag=plotdiag)
             print order,start[iseg], vma
             vshift[order,iseg] = vma
 
@@ -265,3 +263,161 @@ def fitdv(vshift):
     dv += np.polyval(pfit,pix)
     return dv
 
+
+def shift_echelle_spectrum(wav, flux, ref_wav, ref_flux, nseg=8, uflux=None):
+    """Shift echelle spectrum to a reference spectrum
+
+    Given an extracted echelle spectrum having `nord` orders and
+    `npix` measurements per order, shift and stretch and place on the
+    wavelength scale of a reference spectrum. Shifts are determined by
+    cross-correlation. In some cases, telluric lines can interfere
+    with the cross-correlation peak and return outlier shift
+    values. These outliers are identied and replaced with shifts
+    determined from the ensemble of orders.
+
+    Args:
+        wav (array): Array with shape `(nord, npix)` with wavelengths
+            of observed spectrum. Usually determined from calibration
+            lamps. This does not need to be too accurate because
+            spectrum will be shifted to reference spectrum wavelength
+            scale.
+
+        flux (array): Array with shape `(nord, npix)` with continuum
+            normalized flux of target spectrum.
+
+        ref_wav (array): Array with shape `(nref_wav, )` of wavelengths of 
+            reference spectrum.
+
+        ref_flux (array): Array with shape `(nref_wav, )` with the
+            continuum-normalized flux of reference spectrum.
+
+        nsegments (int): Number of segments to break each order into when 
+            performing the cross-correlation.
+
+        uflux (Optional[array]): Array with shape `(nord, npix)` with
+            uncertanties of flux measurement. This array "along for
+            the ride" and receives the same shift.
+
+    Returns:
+        flux_shift (array): Array with shape `(nref_wav, )` target spectrum
+            shifted to the reference wavelength scale.
+        uflux_shift (array): Array with shape `(nref_wav, )` of uncertainty
+            array, also shifted to the reference wavelength scale
+    """
+
+    assert wav.shape==flux.shape, "wav and flux must have same shape"
+    assert ref_wav.shape==ref_flux.shape, \
+        "ref_wav and ref_flux must have same shape"
+
+    nord, npix = wav.shape
+    nref_wav = ref_flux.shape[0]
+
+    vshift = np.zeros( (nord, nseg) )
+
+    # array indecies associated with different segments 
+    pix_segs = np.array_split(np.arange(npix), nseg)
+
+    for i_order in range(nord):
+        for i_seg in range(nseg):
+            i_pix = pix_segs[i_seg]
+            wav_seg = wav[i_order,i_pix]
+            flux_seg = flux[i_order,i_pix]
+            vshift[i_order,i_seg] = velocityshift2(wav_seg, flux_seg, ref_wav,ref_flux)
+
+    return vshift
+
+
+def loglambda(wav0, flux0):
+    """Resample spectrum onto a constant log-lambda wavelength scale
+
+    Args:
+        wav0 (array): array of wavelengths
+        flux0 (array): flux values at wav0
+    
+    Returns:
+        wav (array): wavelengths (constant log-spacing)
+        flux (array): flux values at wav
+        dvel (float): spacing between measurements in velocity space (km/s)
+    """
+    assert wav0.shape==flux0.shape, "wav0 and flux must be same size"
+    npix = wav0.size
+    wav = np.logspace( np.log10( wav0[0] ), np.log10( wav0[-1] ), wav0.size)
+    spline = InterpolatedUnivariateSpline(wav0, flux0)
+    flux = spline(wav)
+    dvel = (wav[1:] - wav[:-1])/(wav[1:]) * speed_of_light
+    dvel = np.mean(dvel)
+    return wav, flux, dvel
+
+def velocityshift2(wav, flux, ref_wav, ref_flux, plot=False):
+    """
+    Find the velocity shift between two spectra. 
+
+    Args:
+         wav (array): Wavelength array.
+         flux (array): Continuum-normalized spectrum. 
+         ref_wav (array): 
+         ref_flux (array): 
+    
+    Velocity means `spec` is red-shifted with respect to model
+    """
+    nwav = flux.size
+
+    # Build spline object for resampling the model spectrum
+    ref_spline = InterpolatedUnivariateSpline(ref_wav, ref_flux)
+
+    # Convert target and model spectra to constant log-lambda scale
+    wav, flux, dvel = loglambda(wav, flux)
+    ref_flux = ref_spline(wav)
+
+    flux -= np.mean(flux)
+    ref_flux -= np.mean(ref_flux)
+
+    corr = np.correlate(ref_flux, flux, mode='full')
+    # Negative lag means `spec` had to be blue-shifted in order to
+    # line up therefole the spectrum is redshifted with respect
+    # `model`
+
+    lag = np.arange(-nwav + 1, nwav) 
+    dvel = -1*lag*dvel
+    vmax, corrmax = quadratic_max(dvel, corr)
+
+    if plot:
+        from matplotlib import pylab as plt
+        # Figure bookkeeping
+        fig,axL = plt.subplots(ncols=2)
+        gs = plt.GridSpec(1,4)
+
+        plt.sca(axL[0])
+        plt.plot(wav,ref_flux)
+        plt.plot(wav,flux)
+
+        plt.sca(axL[1])
+        vrange = (-100,100)
+        b = (dvel > vrange[0]) & (dvel < vrange[1])
+        plt.plot(dvel[b],corr[b])
+        fig.set_tight_layout(True)
+        plt.draw()
+        plt.show()
+        plt.plot([vmax],[corrmax],'o',label='Cross-correlation Peak')
+
+    return vmax
+
+def quadratic_max(x, y, r=3):
+    """Fit points with parabola and find peak
+    
+    Args:
+        x (array): independent variable
+        y (array): dependent variable
+        r (Optional[int]): size of region to fit peak `[-r, +r]` around idxmax
+    
+    
+    Returns:
+    
+    Fit a parabola near a maximum, and figure out where the derivative is 0.
+    """
+    idmax = np.argmax(y)
+    idpeak = np.arange(idmax-r, idmax+r+1)
+    a = np.polyfit(x[idpeak], y[idpeak], 2)
+    xmax = -1.0 * a[1] / (2.0 * a[0]) # Where the derivative is 0
+    ymax = np.polyval(a,xmax)
+    return xmax, ymax
