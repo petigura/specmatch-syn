@@ -4,7 +4,6 @@ This module defines the Library object used for specmatch-synth
 
 
 """
-
 import numpy as np
 import pandas as pd
 import h5py
@@ -35,14 +34,18 @@ class Library(object):
             contained in the `model_table`.
     """
     header_required_keys = ['model_name', 'model_reference']
-    def __init__(self, header, model_table, wavelength, model_spectra):
-        for key in header_required_keys:
+    target_chunk_bytes = 100e3 # Target number of bytes are per hdf chunk
+
+    def __init__(self, header, model_table, wavelength, model_spectra, 
+                 wavlim=None):
+        for key in self.header_required_keys:
             assert key in header.keys(), "{} required in header".format(key)
 
         self.header = header
         self.model_table = model_table
         self.wavelength = wavelength
         self.model_spectra = model_spectra
+        self.wavlim = wavlim
 
     def to_hdf(self, outfile):
         """Save model library
@@ -59,21 +62,30 @@ class Library(object):
 
             model_table = np.array(self.model_table.to_records(index=False))
             h5['model_table'] = model_table
-            h5['model_spectra'] = self.model_spectra
             h5['wavelength'] = self.wavelength
-        
-        
+
+            # Compute chunk size for compressed library
+            chunk_row = self.model_spectra.shape[0]
+            chunk_col = self.target_chunk_bytes / self.model_spectra[:,0].nbytes
+            chunk_col = int(chunk_col)
+            chunks = (chunk_row, chunk_col)
+
+            print "storing model spectra with chunks of size {}".format(chunks)
+            dset = h5.create_dataset(
+                'model_spectra', data=self.model_spectra, compression='gzip', 
+                compression_opts=1, shuffle=True, chunks=chunks
+            )
 
     def synth(self, wav, teff, logg, fe, vsini, psf, interp_mode='trilinear'):
         """Synthesize a model spectrum
 
-        Interpolate between points in the model grid
-        and synthesize a spectral region for a given
-        set of stellar parameters.
+        Interpolate between points in the model grid and synthesize a
+        spectral region for a given set of stellar parameters.
+
         """
         pass
     
-def from_hdf(filename):
+def read_hdf(filename, wavlim=None):
     """Read model library grid
 
     Read in a model library grid from an h5 file and initialze a Library object.
@@ -90,8 +102,20 @@ def from_hdf(filename):
     with h5py.File(filename,'r') as h5:
         header = dict(h5.attrs)
         model_table = pd.DataFrame.from_records(h5['model_table'][:])
-        wavelength = h5['wavelength']
-        model_spectra = h5['model_spectra']
+        wavelength = h5['wavelength'][:]
+        
+        if wavlim is None:
+            model_spectra = h5['model_spectra'][:]
+        else:
+            idxwav, = np.where(
+                (wavelength > wavlim[0]) &
+                (wavelength < wavlim[1])
+            )
 
-    lib = Library(header, model_table, wavelength, model_spectra)
+            idxmin = idxwav[0]
+            idxmax = idxwav[-1] + 1 # add 1 to include last index when slicing
+            model_spectra = h5['model_spectra'][:,idxmin:idxmax]
+            wavelength = wavelength[idxmin:idxmax]
+
+    lib = Library(header, model_table, wavelength, model_spectra, wavlim=wavlim)
     return lib
