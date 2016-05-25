@@ -4,9 +4,15 @@ This module defines the Library object used for specmatch-synth
 
 
 """
+import itertools
+
 import numpy as np
+import scipy.ndimage as nd
+from scipy.interpolate import InterpolatedUnivariateSpline
 import pandas as pd
 import h5py
+
+import smsyn.restwav
 
 class Library(object):
     """The Library object
@@ -26,27 +32,35 @@ class Library(object):
             `model_spectra` array that is associated with the given
             parameters.
 
-        wavelength (array): 1-d vector containng the wavelength scale
+        wav (array): 1-d vector containng the wavelength scale
             for the model spectra
 
         model_spectra (array): array containing all model spectra
             ordered so that the they can be referenced by the indicies
             contained in the `model_table`.
+
+        wavlim (2-element iterable): (optional) list, tuple, or other 2-element
+            itarable that contains the upper and lower wavelengths limits to be read
+            into memory
     """
     header_required_keys = ['model_name', 'model_reference']
     target_chunk_bytes = 100e3 # Target number of bytes are per hdf chunk
 
-    def __init__(self, header, model_table, wavelength, model_spectra, 
+    def __init__(self, header, model_table, wav, model_spectra, 
                  wavlim=None):
         for key in self.header_required_keys:
             assert key in header.keys(), "{} required in header".format(key)
 
         self.header = header
         self.model_table = model_table
-        self.wavelength = wavelength
+        self.wav = wav
         self.model_spectra = model_spectra
         self.wavlim = wavlim
 
+    def __repr__(self):
+        return "<smsyn.library.Library object for the {0} model library ({1})>".format(
+            self.header['model_name'], self.header['model_reference'])
+        
     def to_hdf(self, outfile):
         """Save model library
 
@@ -62,7 +76,7 @@ class Library(object):
 
             model_table = np.array(self.model_table.to_records(index=False))
             h5['model_table'] = model_table
-            h5['wavelength'] = self.wavelength
+            h5['wav'] = self.wavelength
 
             # Compute chunk size for compressed library
             chunk_row = self.model_spectra.shape[0]
@@ -76,14 +90,105 @@ class Library(object):
                 compression_opts=1, shuffle=True, chunks=chunks
             )
 
+    def select_model(self, pars):
+        """Select a model spectrum
+
+        Grab a model spectrum from the library that corresponds
+        to a given set of stellar parameters.
+
+        Args:
+            pars (3-element iterable): A 3-element tuple containing (teff, logg, and fe)
+            
+        Returns:
+            array: model spectrum flux resampled at the new wavelengths
+        
+        """
+
+        assert (pars[0] in self.model_table['teff'].values) & \
+               (pars[1] in self.model_table['logg'].values) & \
+               (pars[2] in self.model_table['fe'].values), \
+               "The given set of parameters does not match a row in the model_table lookup table: {}".format(pars)        
+        
+        row = self.model_table[(self.model_table['teff'] == pars[0]) &
+                                    (self.model_table['logg'] == pars[1]) &
+                                    (self.model_table['fe'] == pars[2])]
+        idx = row['model_index']
+        spec = self.model_spectra[idx]
+        
+        return spec
+
+            
     def synth(self, wav, teff, logg, fe, vsini, psf, interp_mode='trilinear'):
         """Synthesize a model spectrum
 
-        Interpolate between points in the model grid and synthesize a
-        spectral region for a given set of stellar parameters.
+        For a given set of wavelengths teff, logg, fe, vsini, psf, compute a model spectrum by:
+
+            1. Determine the 8 coelho models surounding the (teff,logg,fe)
+            2. Perform trilinear interpolation
+            3. Resample onto new wavelength scale
+            4. Broaden with rot-macro turbulence
+            5. Broaden with PSF (assume gaussian)
+
+        Args:
+            wav   (array): wavelengths where the model will be calculated
+            teff  (float): effective temp (K)
+            logg  (float): surface gravity (logg)
+            fe    (float): metalicity [Fe/H] (dex)
+            vsini (float): rotational velocity (km/s)
+            psf   (float): sigma for instrumental profile (pixels)
+
+        Returns:
+            array: synthesized model calculated at the wavelengths specified
+                in the wav argument
 
         """
-        pass
+
+
+        
+        self.model_table['dteff'] = np.abs(self.model_table['teff']-teff)
+        self.model_table['dlogg'] = np.abs(self.model_table['logg']-logg)
+        self.model_table['dfe'] = np.abs(self.model_table['fe']-fe)
+
+        teff1,teff2 = self.model_table.sort_values(by='dteff')['teff'].drop_duplicates()[:2]
+        logg1,logg2 = self.model_table.sort_values(by='dlogg')['logg'].drop_duplicates()[:2]
+        fe1,fe2 = self.model_table.sort_values(by='dfe')['fe'].drop_duplicates()[:2]
+
+        corners = itertools.product([teff1,teff2],[logg1,logg2],[fe1,fe2])
+        
+        c = np.vstack( map(self.select_model,corners) )
+    
+        v0 = [teff1, logg1, fe1]
+        v1 = [teff2, logg2, fe2]
+        vi = [teff, logg, fe]
+
+        # Perform interpolation
+        if interp_mode == 'trilinear':
+            s = trilinear_interp(c,v0,v1,vi)
+        else:
+            raise NameError, "Interpolation mode {} not implemented.".format(interp_mode)
+
+        # Resample at the requested wavelengths
+        s = InterpolatedUnivariateSpline(self.wav, s)(wav)
+            
+        # Broaden with rotational-macroturbulent broadening profile
+        dv = smsyn.restwav.loglambda_wls_to_dv(wav)
+
+        n = 151 # Correct for VsinI up to ~50 km/s
+
+        # Valenti and Fischer macroturb reln ERROR IN PAPER!!!
+        xi = 3.98 + (teff-5770)/650
+        if xi < 0: 
+            xi = 0 
+    
+        varr,M = smsyn.kernels.rotmacro(n,dv,xi,vsini)
+        s = nd.convolve1d(s,M) 
+
+
+        # Broaden with PSF (assume gaussian) (km/s)
+        if psf > 0: s = nd.gaussian_filter(s,psf)
+
+        return s
+
     
 def read_hdf(filename, wavlim=None):
     """Read model library grid
@@ -93,7 +198,9 @@ def read_hdf(filename, wavlim=None):
     Args:
         filename (string): path to h5 file that contains the grid
             of stellar atmosphere models
-
+        wavlim (2-element iterable): upper and lower wavelength limits
+            (in Angstroms) to load into RAM
+        
     Returns:
         Library object
         
@@ -119,3 +226,38 @@ def read_hdf(filename, wavlim=None):
 
     lib = Library(header, model_table, wavelength, model_spectra, wavlim=wavlim)
     return lib
+
+
+def trilinear_interp(c,v0,v1,vi):
+    """Trilinear interpolation
+
+    Perform trilinear interpolation as described here.
+    http://en.wikipedia.org/wiki/Trilinear_interpolation
+
+    Args:
+        c (8 x n array): where C each row of C corresponds to the value at one corner
+        v0 (length 3 array): with the origin
+        v1 (length 3 array): with coordinates on the diagonal
+        vi (length 3 array): specifying the interpolated coordinates
+
+    Returns:
+        interpolated value of c at vi
+        
+    """
+
+    v0 = np.array(v0) 
+    v1 = np.array(v1) 
+    vi = np.array(vi) 
+
+    vd = (vi-v0)/(v1-v0) # fractional distance between grid points
+
+    cx0 = c[:4] # function at x0
+    cx1 = c[4:] # function at x1
+
+    cix = cx0 * (1-vd[0]) +  cx1 * vd[0]
+    cixy = cix[:2] * (1-vd[1]) +  cix[2:] * vd[1]
+    cixyz = cixy[0] * (1-vd[2]) +  cixy[1] * vd[2]
+    return cixyz
+
+    
+
