@@ -4,7 +4,7 @@ from scipy.stats import nanstd, nanmean, nanmedian
 
 from smsyn import h5plus
 from smsyn import ccs
-import smsyn.smio
+#import smsyn.smio
 
 from time import strftime
 
