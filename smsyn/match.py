@@ -1,3 +1,8 @@
+"""
+
+This module defines the Match class that is used in fitting routines.
+
+"""
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
@@ -7,16 +12,17 @@ class Match(object):
     def __init__(self, spec, lib, wavmask):
         """
 
-        
+        The Match object used for fitting functions
         
         Args:
             spec (smsyn.spectrum.Spectrum): Spectrum object containing
                 the data to be fit
-            lib (smsyn.library.Library): Library object containing the
-                model library and `synth` method
+            lib (smsyn.library.Library): Library object containing
+                the model library and `synth` method
 
-            wavmask (boolean array): same length as spec.wav. If false ignore
-                in the likelihood calculation
+            wavmask (boolean array): same length as spec.wav. If false
+                ignore in the likelihood calculation
+                
         """
 
         self.spec = spec
@@ -30,12 +36,13 @@ class Match(object):
         Return the model for a given set of parameters
 
         Args:
-            params (lmfit.Parameters): Parameters object containing
-               at least teff, logg, fe, vsini, psf, and spline coefficients
-            wav (array): (optional) array of wavelengths at which to calculate
-                the model. Useful for generating a more finely sampled
-                model for plotting
+            params (lmfit.Parameters): Parameters object containing at least
+                teff, logg, fe, vsini, psf, and spline coefficients
+            wav (array): (optional) array of wavelengths at which to
+                calculate the model. Useful for generating a more finely
+                sampled model for plotting
             **kwargs: extra keyword arguments passed to lib.synth
+            
         """
 
         if wav is None:
@@ -57,13 +64,11 @@ class Match(object):
     def continuum(self, params, wav):
         """Continuum model
 
-        Return only the model for the continuum for a given set of
-        parameters.
+        Return only the model for the continuum for a given set of parameters.
         
         Args:
             params (lmfit.Parameters): See params in self.model
-            wav: array of wavelengths at which to calculate
-               the continuum model.
+            wav: array of wavelengths at which to calculate the continuum model.
 
         Returns:
             array: continuum model

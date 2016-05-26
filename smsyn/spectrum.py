@@ -3,9 +3,9 @@
 This module defines the Library object used for specmatch-synth
 
 Attributes:
-    fitscoldefs (list of tuples): column labels and metadata for output
-        fits files
-
+    fitscoldefs (list of tuples): column labels and metadata for output fits files
+    
+    
 """
 
 from astropy.io import fits
@@ -15,6 +15,7 @@ FITSCOLDEFS = [
            ('flux', 'D', 'Normalized flux', 'relative intensity'),
            ('uflux', 'D', 'Flux uncertainty', 'relative intensity')
 ]
+
 
 class Spectrum(object):
     """Spectrum object
