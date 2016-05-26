@@ -21,7 +21,7 @@ def grid_search(match, param_table0):
             iterations
     """
 
-    
+    param_keys = param_table0.columns    
     param_table = param_table0.copy()
     for col in 'chisq rchisq logprob niter'.split():
         param_table[col] = np.nan
@@ -33,9 +33,12 @@ def grid_search(match, param_table0):
 
     params['vsini'].vary = True
     for i, row in param_table.iterows():
-        
+        for key in param_keys:
+            params[key].set(row[key])
+
         mini = lmfit.minimize(match.nresid)
-        
-        
-        mini.params
-        
+        params_table.loc[i,key] = mini.params[key]
+        params_table.loc[i,'chisq'] = mini.chisq
+        params_table.loc[i,'rchisq'] = mini.redchisq
+
+    return params_table
