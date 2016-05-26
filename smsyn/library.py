@@ -98,22 +98,19 @@ class Library(object):
         to a given set of stellar parameters.
 
         Args:
-            pars (3-element iterable): A 3-element tuple containing (teff, logg, and fe)
+            pars (3-element iterable): A 3-element tuple containing teff, logg,
+                and fe
             
         Returns:
             array: model spectrum flux resampled at the new wavelengths
         
         """
 
-        assert (pars[0] in self.model_table['teff'].values) & \
-               (pars[1] in self.model_table['logg'].values) & \
-               (pars[2] in self.model_table['fe'].values), \
-               "The given set of parameters does not match a row in the model_table lookup table: {}".format(pars)        
-        
-        row = self.model_table[(self.model_table['teff'] == pars[0]) &
-                                    (self.model_table['logg'] == pars[1]) &
-                                    (self.model_table['fe'] == pars[2])]
-        idx = row['model_index']
+        arr = np.array(self.model_table['teff logg fe'.split()])
+        arr-=pars
+        idx = np.where(np.sum(np.abs(arr) < 1e-3,axis=1)==3)[0]
+        assert len(idx)==1, "model at {} not found".format(pars)
+
         spec = self.model_spectra[idx]
         
         return spec
@@ -168,8 +165,9 @@ class Library(object):
             raise NameError, "Interpolation mode {} not implemented.".format(interp_mode)
 
         # Resample at the requested wavelengths
-        s = scipy.interpolate.InterpolatedUnivariateSpline(self.wav, s)(wav)
-            
+        # s = scipy.interpolate.InterpolatedUnivariateSpline(self.wav, s)(wav)
+        s = np.interp(wav, self.wav, s)
+
         # Broaden with rotational-macroturbulent broadening profile
         dvel = smsyn.wavsol.wav_to_dvel(wav)
         dvel0 = dvel[0]
