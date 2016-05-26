@@ -7,6 +7,8 @@ class Match(object):
     def __init__(self, spec, lib, wavmask):
         """
 
+        
+        
         Args:
             spec (smsyn.spectrum.Spectrum): Spectrum object containing
                 the data to be fit
@@ -19,6 +21,7 @@ class Match(object):
 
         self.spec = spec
         self.lib = lib
+        self.wavmask = wavmask
 
 
     def model(self, params, wav=None, **kwargs):
@@ -35,7 +38,7 @@ class Match(object):
             **kwargs: extra keyword arguments passed to lib.synth
         """
 
-        if wav is not None:
+        if wav is None:
             wav = self.spec.wav
 
         teff = params['teff'].value
@@ -110,7 +113,7 @@ class Match(object):
 
         """
 
-        return self.residuals(params) / self.spec.uflux
+        return self.resid(params) / self.spec.uflux
 
     def masked_nresid(self, params):
         """Masked normalized residuals
@@ -126,6 +129,6 @@ class Match(object):
 
         """
 
-        return self.nresid[self.wavmask]
+        return self.nresid(params)[self.wavmask]
 
     
