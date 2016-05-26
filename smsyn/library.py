@@ -8,11 +8,12 @@ import itertools
 
 import numpy as np
 import scipy.ndimage as nd
-from scipy.interpolate import InterpolatedUnivariateSpline
+import scipy.interpolate
 import pandas as pd
 import h5py
 
-import smsyn.restwav
+import smsyn.kernels
+import smsyn.wavsol
 
 class Library(object):
     """The Library object
@@ -167,10 +168,10 @@ class Library(object):
             raise NameError, "Interpolation mode {} not implemented.".format(interp_mode)
 
         # Resample at the requested wavelengths
-        s = InterpolatedUnivariateSpline(self.wav, s)(wav)
+        s = scipy.interpolate.InterpolatedUnivariateSpline(self.wav, s)(wav)
             
         # Broaden with rotational-macroturbulent broadening profile
-        dvel = smsyn.restwav.wav_to_dvel(wav)
+        dvel = smsyn.wavsol.wav_to_dvel(wav)
         dvel0 = dvel[0]
         if np.allclose(dvel,dvel[0],rtol=1e-3,atol=1) is False:
             print "wav not uniform in loglambda, using mean dvel"
