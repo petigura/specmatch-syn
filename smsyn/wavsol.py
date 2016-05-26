@@ -128,7 +128,7 @@ def shift_echelle_spectrum(wav, flux, ref_wav, ref_flux, nseg=8, uflux=None):
                 )
 
     print_vshift(vshift)
-
+    # return 
     velshift = VelocityShift(wav.shape[0], wav.shape[1], pixmid, vshift)
     dvel = velshift.caculate_dvel(method='global')
 
@@ -149,6 +149,7 @@ def shift_echelle_spectrum(wav, flux, ref_wav, ref_flux, nseg=8, uflux=None):
         b = (wav_refscale[0] < ref_wav) & (ref_wav < wav_refscale[-1])
         flux_refscale[i_order,b] = spline(ref_wav[b])
 
+    # return 
     return flux_refscale
 
 def wav_to_dvel(wav):
@@ -217,7 +218,7 @@ def velocityshift(wav, flux, ref_wav, ref_flux, plot=False):
     # `model`
 
     lag = np.arange(-nwav + 1, nwav) 
-    dvel = -1*lag*dvel
+    dvel = -1.0 * lag*dvel
     vmax, corrmax = quadratic_max(dvel, corr)
 
     if plot:
