@@ -23,7 +23,8 @@ def main(fitsdir, outfile):
                 teff = header['TEFF'],
                 logg = header['LOG_G'],
                 fe = header['FEH'],
-                afe = header['AFE']
+                afe = header['AFE'],
+                model_index = i
             )
             model_table.append(table_row)
             s = hduL[0].data[0]

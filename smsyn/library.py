@@ -144,7 +144,6 @@ class Library(object):
 
         """
 
-
         
         self.model_table['dteff'] = np.abs(self.model_table['teff']-teff)
         self.model_table['dlogg'] = np.abs(self.model_table['logg']-logg)
@@ -172,7 +171,11 @@ class Library(object):
         s = scipy.interpolate.InterpolatedUnivariateSpline(self.wav, s)(wav)
             
         # Broaden with rotational-macroturbulent broadening profile
-        dv = smsyn.restwav.loglambda_wls_to_dv(wav)
+        dvel = smsyn.restwav.wav_to_dvel(wav)
+        dvel0 = dvel[0]
+        if np.allclose(dvel,dvel[0],rtol=1e-3,atol=1) is False:
+            print "wav not uniform in loglambda, using mean dvel"
+            dvel0 = np.mean(dvel)
 
         n = 151 # Correct for VsinI up to ~50 km/s
 
@@ -181,9 +184,8 @@ class Library(object):
         if xi < 0: 
             xi = 0 
     
-        varr,M = smsyn.kernels.rotmacro(n,dv,xi,vsini)
+        varr,M = smsyn.kernels.rotmacro(n,dvel0,xi,vsini)
         s = nd.convolve1d(s,M) 
-
 
         # Broaden with PSF (assume gaussian) (km/s)
         if psf > 0: s = nd.gaussian_filter(s,psf)
@@ -219,13 +221,14 @@ def read_hdf(filename, wavlim=None):
                 (wavelength > wavlim[0]) &
                 (wavelength < wavlim[1])
             )
-
             idxmin = idxwav[0]
             idxmax = idxwav[-1] + 1 # add 1 to include last index when slicing
             model_spectra = h5['model_spectra'][:,idxmin:idxmax]
             wavelength = wavelength[idxmin:idxmax]
 
-    lib = Library(header, model_table, wavelength, model_spectra, wavlim=wavlim)
+    lib = Library(
+        header, model_table, wavelength, model_spectra, wavlim=wavlim
+    )
     return lib
 
 
