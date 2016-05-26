@@ -9,108 +9,7 @@ import smsyn.smio
 from time import strftime
 from scipy.interpolate import InterpolatedUnivariateSpline
 
-speed_of_light = 2.99792e5 # Speed of light [km/s] 
-
-def restwav(obs):
-    if obs.startswith('ra'): dbtype = 'apf'
-    else: dbtype = 'db'
-        
-    print "Converting to HD5"
-    obs2h5(obs, dbtype=dbtype)
-    print "Finding velocity shifts"
-    segdvh5(obs, dbtype=dbtype)
-    print "Fitting velocity shifts"
-    fitdvh5(obs, dbtype=dbtype)
-    
-def obs2h5(obs, dbtype='db'):
-    """
-    Simply loads up the file from a given obs and shoves it into an h5 file.
-    """
-
-    kbcd = smsyn.smio.kbc_query(obs)
-    outpath = smsyn.smio.cps_resolve(obs,'restwav')
-    with h5plus.File(outpath) as h5:
-        spec,header = smsyn.smio.getspec_fits(obs,type=dbtype,npad=0,header=True)
-        h5['db'] = spec
-        header = dict(header,**kbcd)
-        h5plus.dict_to_attrs(h5,header)
-
-
-def segdvh5(obs,**kwargs):
-    """
-    Segment Velocity Shift HDF5 wrapper
-
-    Determines the closest matching model using coelho match. Then
-    runs segdv and saves the shifts in a h5 directory.
-    
-    Parameters
-    ----------
-    obs : CPS identifier
-    kwargs : keyword arguments are passed to segdv
-    """
-    d = smsyn.smio.kbc_query(obs)
-    outpath = smsyn.smio.cps_resolve(obs,'restwav')
-
-    par = coelhomatch(obs,dbtype=kwargs['dbtype'])
-    mpar = dict(par.sort_values(by='ccfmax').iloc[-1])
-    mpar['name'] = d['name']    
-    print "%(name)s best match: teff = %(teff)i; logg = %(logg).1f" % mpar
-    with h5plus.File(outpath) as h5:
-        v = segdv(obs, mpar, **kwargs)
-        pix = np.vstack([mid]*v.shape[0])
-        h5['shift'] = np.rec.fromarrays([v,pix],names=['v','mid'])
-
-
-def fitdvh5(obs, dbtype='db'):
-    outpath = smsyn.smio.cps_resolve(obs,'restwav')
-    with h5plus.File(outpath) as h5:
-        print "saving to %s " % outpath
-        shift = h5['shift'][:]
-        dv = fitdv( h5['shift']['v'] ) 
-
-        nclip = 200
-        sl = slice(nclip,npix-nclip)
-        specrw = h5['db'][:,sl].copy()
-
-        fullspec = smsyn.smio.getspec_fits(obs,type=dbtype,npad=0)
-        for order in range(nord):
-            # Intitial guess wavelength clip off the edges, so I'm not
-            # interpolating outside the limits of the spectrum
-
-            spec = fullspec[order]
-            spec = smsyn.smio.loglambda(spec)
-
-            specrest = spec.copy()
-            dlam = dv[order] / speed_of_light * specrest['w']
-            specrest['w'] -= dlam # Change wavelengths to the rest wavelengths
-
-            # Interpolate back onto conveinent grid
-            specrw[order] = smsyn.smio.resamp(specrest,spec['w'][sl])
-
-        h5['rw'] = specrw
-        h5.attrs['restwav_stop_time'] = strftime("%Y-%m-%d %H:%M:%S")
-        h5.attrs['restwav_sha'] = smsyn.smio.get_repo_head_sha()
-
-def coelhomatch(obs,dbtype='db'):
-    par = smsyn.smio.loadlibrary('/Users/petigura/Research/SpecMatch/library/library_coelho_restwav.csv')
-
-    fullspec = smsyn.smio.getspec_fits(obs,type=dbtype)
-    par['ccfmax'] = 0
-    for i in par.index:
-        p = par.ix[i]
-
-        order = 2 # Use the MgB region to figure out which
-        sl = slice(1500,3000)  # template works best
-
-        spec = fullspec[order,sl]
-        spec = smsyn.smio.loglambda(spec)
-        model = smsyn.smio.getmodelseg(p,spec['w'])
-
-        vma,xcorrma = velocityshift(model,spec)
-        par.ix[i,'ccfmax'] = xcorrma
-
-    return par
-
+SPEED_OF_LIGHT = 2.99792e5 # Speed of light [km/s] 
 
 class VelocityShift(object):
     """Velocity Shift
@@ -164,7 +63,6 @@ class VelocityShift(object):
         dvel = np.zeros((self.nord,self.npix)) 
         dvel += np.polyval(pfit,pix)[np.newaxis,:]
         return dvel
-
 
 def shift_echelle_spectrum(wav, flux, ref_wav, ref_flux, nseg=8, uflux=None):
     """Shift echelle spectrum to a reference spectrum
@@ -233,73 +131,34 @@ def shift_echelle_spectrum(wav, flux, ref_wav, ref_flux, nseg=8, uflux=None):
 
     velshift = VelocityShift(wav.shape[0], wav.shape[1], pixmid, vshift)
     dvel = velshift.caculate_dvel(method='global')
-    wav_refscaleL = []
-    flux_refscaleL = []
+
+    flux_refscale = np.empty((nord, ref_wav.shape[0]))
+    flux_refscale[:] = np.nan
+    
     for i_order in range(nord):
         # Intitial guess wavelength clip off the edges, so I'm not
         # interpolating outside the limits of the spectrum
 
         # Calculate the change in wavelength to the model
         # Change wavelengths to the rest wavelengths
-        dlam = dvel[i_order] / speed_of_light * wav[i_order]
+        dlam = dvel[i_order] / SPEED_OF_LIGHT * wav[i_order]
         wav_refscale = wav[i_order] - dlam 
 
         spline = InterpolatedUnivariateSpline(wav_refscale, flux[i_order])
 
         b = (wav_refscale[0] < ref_wav) & (ref_wav < wav_refscale[-1])
-        flux_refscale = spline(ref_wav[b])
+        flux_refscale[i_order,b] = spline(ref_wav[b])
 
-        wav_refscaleL.append(ref_wav[b])
-        flux_refscaleL.append(flux_refscale)
+    return flux_refscale
 
-    return wav_refscaleL, flux_refscaleL
-
-
-
-def fitdvh5(obs, dbtype='db'):
-    outpath = smsyn.smio.cps_resolve(obs,'restwav')
-    with h5plus.File(outpath) as h5:
-        print "saving to %s " % outpath
-        shift = h5['shift'][:]
-        dv = fitdv( h5['shift']['v'] ) 
-
-        nclip = 200
-        sl = slice(nclip,npix-nclip)
-        specrw = h5['db'][:,sl].copy()
-
-        fullspec = smsyn.smio.getspec_fits(obs,type=dbtype,npad=0)
-        for order in range(nord):
-            # Intitial guess wavelength clip off the edges, so I'm not
-            # interpolating outside the limits of the spectrum
-
-            spec = fullspec[order]
-            spec = smsyn.smio.loglambda(spec)
-
-            specrest = spec.copy()
-            dlam = dv[order] / speed_of_light * specrest['w']
-            specrest['w'] -= dlam # Change wavelengths to the rest wavelengths
-
-            # Interpolate back onto conveinent grid
-
-
-            specrw[order] = smsyn.smio.resamp(specrest,spec['w'][sl])
-
-        h5['rw'] = specrw
-        h5.attrs['restwav_stop_time'] = strftime("%Y-%m-%d %H:%M:%S")
-        h5.attrs['restwav_sha'] = smsyn.smio.get_repo_head_sha()
-
-
-
-
-
-
-
-
-
-    return vshift
+def wav_to_dvel(wav):
+    """Converts wavelengths to delta velocities using doppler formula"""
+    dvel = (wav[1:] - wav[:-1]) / (wav[1:]) * SPEED_OF_LIGHT
+    return dvel
 
 
 def print_vshift(vshift):
+    nord = vshift.shape[0]
     for i_order in range(nord):
         outstr = ["{:.2f}".format(v) for v in vshift[i_order]]
         outstr = " ".join(outstr)
@@ -324,7 +183,7 @@ def loglambda(wav0, flux0):
     wav = np.logspace( np.log10( wav0[0] ), np.log10( wav0[-1] ), wav0.size)
     spline = InterpolatedUnivariateSpline(wav0, flux0)
     flux = spline(wav)
-    dvel = (wav[1:] - wav[:-1])/(wav[1:]) * speed_of_light
+    dvel = (wav[1:] - wav[:-1])/(wav[1:]) * SPEED_OF_LIGHT
     dvel = np.mean(dvel)
     return wav, flux, dvel
 
