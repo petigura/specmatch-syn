@@ -52,8 +52,8 @@ class Spectrum(object):
         """
         
         columns = []
-        for i,col in enumerate(fitscoldefs):
-            colinfo = fitscoldefs[i]
+        for i,col in enumerate(FITSCOLDEFS):
+            colinfo = FITSCOLDEFS[i]
             coldata = self.__dict__[colinfo[0]]
             fitscol = fits.Column(array=coldata, format=colinfo[1], name=colinfo[0], unit=colinfo[3])
 
