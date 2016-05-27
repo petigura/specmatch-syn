@@ -82,6 +82,12 @@ class Match(object):
                 node_wav.append(float(key.replace('sp','')))
                 node_flux.append(params[key].value)
 
+        if len(node_wav) == 0 or len(node_flux) == 0:
+            return np.ones_like(wav)
+
+        assert len(node_wav) > 3 and len(node_flux) > 3, \
+            "Too few spline nodes for the continuum model."
+            
         node_wav = np.array(node_wav)
         node_flux = np.array(node_flux)
                 
