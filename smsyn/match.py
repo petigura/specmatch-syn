@@ -1,6 +1,6 @@
 
 import numpy as np
-from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.interpolate import InterpolatedUnivariateSpline, UnivariateSpline
 
 class Match(object):
 
@@ -48,13 +48,13 @@ class Match(object):
         psf = params['psf'].value
 
         _model = self.lib.synth(wav, teff, logg, fe, vsini, psf, **kwargs)
-        
-        _model *= self.continuum(params, wav)
+        mcont = self.continuum(wav, _model, weights=_model)
+        _model /= mcont
 
         return _model
 
     
-    def continuum(self, params, wav):
+    def continuum(self, wav, data, weights, s=100):
         """Continuum model
 
         Return only the model for the continuum for a given set of
@@ -70,23 +70,7 @@ class Match(object):
                
         """
 
-        node_wav = []
-        node_flux = []
-        for key in params.keys():
-            if key.startswith('sp'):
-                node_wav.append(float(key.replace('sp','')))
-                node_flux.append(params[key].value)
-
-        if len(node_wav) == 0 or len(node_flux) == 0:
-            return np.ones_like(wav)
-
-        assert len(node_wav) > 3 and len(node_flux) > 3, \
-            "Too few spline nodes for the continuum model."
-            
-        node_wav = np.array(node_wav)
-        node_flux = np.array(node_flux)
-                
-        splrep = InterpolatedUnivariateSpline(node_wav, node_flux)
+        splrep = UnivariateSpline(wav, data, w=weights, s=100)
         cont = splrep(wav)
 
         return cont
@@ -103,8 +87,10 @@ class Match(object):
             array: model minus data
 
         """
+
+        flux = self.spec.flux / self.continuum(self.spec.wav, self.spec.flux, self.spec.flux)
         
-        res = self.model(params, wav=self.spec.wav) - self.spec.flux
+        res = flux - self.model(params)
 
         return res
 
