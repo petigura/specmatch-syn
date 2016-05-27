@@ -45,6 +45,7 @@ def telluric_psf(obs,plot=False,plot_med=False):
     """
     
     # Load spectral region and prep.
+    import pdb;pdb.set_trace()
     spec = smio.getspec_fits(obs=obs)[14]
     spec = spec[(spec['w'] > 6270) & (spec['w'] < 6305)]
     spec['s'] /= continuum.cfit(spec)
@@ -109,7 +110,7 @@ def telluric_psf(obs,plot=False,plot_med=False):
         p = copy.deepcopy(p0)
         p['wls0'].value = wls0L[i]
         out = lmfit.minimize(res,p)
-        chiL[i] = np.sum(res(p)**2)
+        chiL[i] = np.sum(res(out.params)**2)
         outL+=[out] 
 
     # If the initial shift is off by a lot, the line depths will go to
