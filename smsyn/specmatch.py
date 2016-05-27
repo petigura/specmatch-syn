@@ -55,3 +55,13 @@ def grid_search(match, param_table0):
         print pd.DataFrame(param_table.loc[i]).T
 
     return param_table
+
+
+
+def polish(match, params0):
+    """Polish parameters
+    
+    Given a match object, polish the parameters
+    """
+
+    lmfit.minimize(match.chi2med,params, method='nelder')
