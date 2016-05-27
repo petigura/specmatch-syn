@@ -107,7 +107,11 @@ def getspec_fits(obs,type='db',npad=100,header=False):
             s /= np.percentile(s,95,axis=1)[:,np.newaxis]
             serr = hduL[1].data
             w = hduL[2].data
+
+            wavpath = '/Users/petigura/Research/SpecMatch/config/keck_rwav.dat'
+            w = readsav(wavpath)['wav']
             #w = getwav()
+
     nord,npix = w.shape
     pix = np.arange(npix).astype(float)
     pix = np.tile(pix,(nord,1))
