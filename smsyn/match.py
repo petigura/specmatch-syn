@@ -48,13 +48,13 @@ class Match(object):
         psf = params['psf'].value
 
         _model = self.lib.synth(wav, teff, logg, fe, vsini, psf, **kwargs)
-        mcont = self.continuum(wav, _model, weights=_model)
+        mcont = self.continuum(wav, _model, _model)
         _model /= mcont
-
+        
         return _model
 
     
-    def continuum(self, wav, data, weights, s=100):
+    def continuum(self, wav, data, weights, s=40):
         """Continuum model
 
         Return only the model for the continuum for a given set of
@@ -70,7 +70,7 @@ class Match(object):
                
         """
 
-        splrep = UnivariateSpline(wav, data, w=weights, s=100)
+        splrep = UnivariateSpline(wav, data, w=weights, s=40)
         cont = splrep(wav)
 
         return cont
