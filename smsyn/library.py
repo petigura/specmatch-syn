@@ -33,16 +33,17 @@ class Library(object):
             `model_spectra` array that is associated with the given
             parameters.
 
-        wav (array): 1-d vector containng the wavelength scale
-            for the model spectra
+        wav (array): 1-d vector containng the wavelength scale for the
+            model spectra
 
         model_spectra (array): array containing all model spectra
             ordered so that the they can be referenced by the indicies
             contained in the `model_table`.
 
-        wavlim (2-element iterable): (optional) list, tuple, or other 2-element
-            itarable that contains the upper and lower wavelengths limits to be read
-            into memory
+        wavlim (2-element iterable): (optional) list, tuple, or other
+            2-element itarable that contains the upper and lower
+            wavelengths limits to be read into memory
+
     """
     header_required_keys = ['model_name', 'model_reference']
     target_chunk_bytes = 100e3 # Target number of bytes are per hdf chunk
@@ -59,8 +60,10 @@ class Library(object):
         self.wavlim = wavlim
 
     def __repr__(self):
-        return "<smsyn.library.Library object for the {0} model library ({1})>".format(
-            self.header['model_name'], self.header['model_reference'])
+        _outstr = "<smsyn.library.Library {0} model library ({1})>".format(
+            self.header['model_name'], self.header['model_reference']
+        )
+        return _outstr
         
     def to_hdf(self, outfile):
         """Save model library
@@ -119,7 +122,8 @@ class Library(object):
     def synth(self, wav, teff, logg, fe, vsini, psf, interp_mode='trilinear'):
         """Synthesize a model spectrum
 
-        For a given set of wavelengths teff, logg, fe, vsini, psf, compute a model spectrum by:
+        For a given set of wavelengths teff, logg, fe, vsini, psf,
+        compute a model spectrum by:
 
             1. Determine the 8 coelho models surounding the (teff,logg,fe)
             2. Perform trilinear interpolation
@@ -162,23 +166,25 @@ class Library(object):
         if interp_mode == 'trilinear':
             s = trilinear_interp(c,v0,v1,vi)
         else:
-            raise NameError, "Interpolation mode {} not implemented.".format(interp_mode)
+            errmsg = "Interpolation mode {} not implemented.".format(
+                interp_mode
+            )
+            raise NameError, errmsg
 
         # Resample at the requested wavelengths
-        # s = scipy.interpolate.InterpolatedUnivariateSpline(self.wav, s)(wav)
         s = np.interp(wav, self.wav, s)
 
         # Broaden with rotational-macroturbulent broadening profile
         dvel = smsyn.wavsol.wav_to_dvel(wav)
         dvel0 = dvel[0]
-        if np.allclose(dvel,dvel[0],rtol=1e-3,atol=1) is False:
+        if np.allclose(dvel, dvel[0], rtol=1e-3, atol=1) is False:
             print "wav not uniform in loglambda, using mean dvel"
             dvel0 = np.mean(dvel)
 
         n = 151 # Correct for VsinI up to ~50 km/s
 
         # Valenti and Fischer macroturb reln ERROR IN PAPER!!!
-        xi = 3.98 + (teff-5770)/650
+        xi = 3.98 + (teff - 5770.0) / 650.0
         if xi < 0: 
             xi = 0 
     
@@ -186,7 +192,8 @@ class Library(object):
         s = nd.convolve1d(s,M) 
 
         # Broaden with PSF (assume gaussian) (km/s)
-        if psf > 0: s = nd.gaussian_filter(s,psf)
+        if psf > 0: 
+            s = nd.gaussian_filter(s,psf)
 
         return s
 
@@ -260,6 +267,3 @@ def trilinear_interp(c,v0,v1,vi):
     cixy = cix[:2] * (1-vd[1]) +  cix[2:] * vd[1]
     cixyz = cixy[0] * (1-vd[2]) +  cixy[1] * vd[2]
     return cixyz
-
-    
-

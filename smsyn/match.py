@@ -104,8 +104,7 @@ class Match(object):
 
         """
         
-        res = self.model(params, wav=self.spec.wav) - self.spec.flux
-
+        res = self.spec.flux - self.model(params, wav=self.spec.wav) 
         return res
 
     def nresid(self, params):
