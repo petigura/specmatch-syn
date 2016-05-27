@@ -158,7 +158,6 @@ def getpars_polish(targd,par0,h5=None,usemask=True,snr=None,ret0=False):
     par0 : dictionary with best guess teff, logg, fe, vsini
     h5 : h5 object, to save out results. If None, results are just returned
     """
-
     # List of wavelength regions to use.
     wloL = conf.wloL_fm
 
@@ -263,7 +262,7 @@ def getpars_polish(targd,par0,h5=None,usemask=True,snr=None,ret0=False):
 
     outpars = {}
     for k in params.keys():
-        outpars[k] = params[k].value
+        outpars[k] = out.params[k].value
     res = residuals(out.params)
     outpars['chi'] = np.sum(res**2/res.size)
 
