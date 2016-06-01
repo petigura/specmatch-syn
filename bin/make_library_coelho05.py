@@ -35,6 +35,27 @@ def main(fitsdir, outfile):
     dw = header['CD1_1'] # Wavelenth sampling (Angstroms)
     wavelength = w0 + np.arange(s.size) * dw
 
+
+    hduL1 = fits.open(os.path.join(fitsdir,'4000_50_p05p00.ms.fits'))
+    hduL2 = fits.open(os.path.join(fitsdir,'4500_50_p05p00.ms.fits'))
+    s = 0.5 * (hduL1[0].data[0] + hduL2[0].data[0])
+    model_index = table_row['model_index']
+    model_index+=1
+    header = hduL1[0].header
+    table_row = dict(teff=4250,logg=5.0,fe=0.5,afe=0.0,model_index=model_index)
+    model_spectra.append(s)
+    model_table.append(table_row)
+
+    hduL1 = fits.open(os.path.join(fitsdir,'5250_30_p00p00.ms.fits'))
+    hduL2 = fits.open(os.path.join(fitsdir,'5250_30_p05p00.ms.fits'))
+    s = 0.6*hduL1[0].data[0] + 0.4*hduL2[0].data[0]
+
+    model_index+=1
+    header = hduL1[0].header
+    table_row = dict(teff=5250,logg=3.0,fe=0.2,afe=0.0,model_index=model_index)
+    model_spectra.append(s)
+    model_table.append(table_row)
+
     model_spectra = np.vstack(model_spectra)
     model_table = pd.DataFrame(model_table)
     header = dict(

@@ -8,7 +8,6 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 class Match(object):
-
     def __init__(self, spec, lib, wavmask):
         """
 
@@ -28,7 +27,6 @@ class Match(object):
         self.spec = spec
         self.lib = lib
         self.wavmask = wavmask
-
 
     def model(self, params, wav=None, **kwargs):
         """Calculate model
@@ -55,12 +53,9 @@ class Match(object):
         psf = params['psf'].value
 
         _model = self.lib.synth(wav, teff, logg, fe, vsini, psf, **kwargs)
-        
         _model *= self.continuum(params, wav)
-
         return _model
 
-    
     def continuum(self, params, wav):
         """Continuum model
 
@@ -79,21 +74,16 @@ class Match(object):
         node_flux = []
         for key in params.keys():
             if key.startswith('sp'):
-                node_wav.append(float(key.replace('sp','')))
-                node_flux.append(params[key].value)
-
-        if len(node_wav) == 0 or len(node_flux) == 0:
-            return np.ones_like(wav)
+                node_wav.append( float( key.replace('sp','') ) )
+                node_flux.append( params[key].value )
 
         assert len(node_wav) > 3 and len(node_flux) > 3, \
             "Too few spline nodes for the continuum model."
             
         node_wav = np.array(node_wav)
         node_flux = np.array(node_flux)
-                
         splrep = InterpolatedUnivariateSpline(node_wav, node_flux)
         cont = splrep(wav)
-
         return cont
         
     def resid(self, params):
@@ -141,4 +131,3 @@ class Match(object):
 
         return self.nresid(params)[self.wavmask]
 
-    
