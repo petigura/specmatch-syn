@@ -80,7 +80,7 @@ class Library(object):
 
             model_table = np.array(self.model_table.to_records(index=False))
             h5['model_table'] = model_table
-            h5['wav'] = self.wavelength
+            h5['wav'] = self.wav
 
             # Compute chunk size for compressed library
             chunk_row = self.model_spectra.shape[0]
@@ -132,12 +132,12 @@ class Library(object):
             5. Broaden with PSF (assume gaussian)
 
         Args:
-            wav   (array): wavelengths where the model will be calculated
-            teff  (float): effective temp (K)
-            logg  (float): surface gravity (logg)
-            fe    (float): metalicity [Fe/H] (dex)
+            wav (array): wavelengths where the model will be calculated
+            teff (float): effective temp (K)
+            logg (float): surface gravity (logg)
+            fe (float): metalicity [Fe/H] (dex)
             vsini (float): rotational velocity (km/s)
-            psf   (float): sigma for instrumental profile (pixels)
+            psf (float): sigma for instrumental profile (pixels)
 
         Returns:
             array: synthesized model calculated at the wavelengths specified
@@ -217,22 +217,22 @@ def read_hdf(filename, wavlim=None):
     with h5py.File(filename,'r') as h5:
         header = dict(h5.attrs)
         model_table = pd.DataFrame.from_records(h5['model_table'][:])
-        wavelength = h5['wavelength'][:]
+        wav = h5['wav'][:]
         
         if wavlim is None:
             model_spectra = h5['model_spectra'][:]
         else:
             idxwav, = np.where(
-                (wavelength > wavlim[0]) &
-                (wavelength < wavlim[1])
+                (wav > wavlim[0]) &
+                (wav < wavlim[1])
             )
             idxmin = idxwav[0]
             idxmax = idxwav[-1] + 1 # add 1 to include last index when slicing
             model_spectra = h5['model_spectra'][:,idxmin:idxmax]
-            wavelength = wavelength[idxmin:idxmax]
+            wav = wav[idxmin:idxmax]
 
     lib = Library(
-        header, model_table, wavelength, model_spectra, wavlim=wavlim
+        header, model_table, wav, model_spectra, wavlim=wavlim
     )
     return lib
 
