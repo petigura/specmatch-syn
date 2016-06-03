@@ -131,3 +131,9 @@ class Match(object):
 
         return self.nresid(params)[self.wavmask]
 
+    def chi2med(self, params):
+        _resid = self.resid(params)
+        med = np.median(_resid)
+        _resid -= med
+        _chi2med = np.sum(_resid**2)
+        return _chi2med
