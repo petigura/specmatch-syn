@@ -5,11 +5,11 @@ from scipy import optimize
 import lmfit
 from astropy.io import fits
 
-from smsyn import conf
+#from smsyn import conf
 #from smsyn import smio
 from smsyn import continuum
 from smsyn import specmatch
-from smsyn import coelho
+#from smsyn import coelho
 from smsyn import fftspecfilt
 from smsyn import wlmask
 from smsyn import pdplus
@@ -31,7 +31,25 @@ class SpecMatchResults(object):
         self.grid_result = grid_result
         self.polishing_result = polishing_result
 
-        
+        self.bestfit = {'teff': [], 'logg': [], 'vsini': [], 'fe': [], 'psf': []}
+        ikeys = self.bestfit.keys()
+        for seg in polishing_result:
+            result = seg['result']
+            params = result.params
+            for k in ikeys:
+                self.bestfit[k].append(params[k].value)
+                self.bestfit[k+'_vary'] = params[k].vary
+                self.bestfit[k+'_min'] = params[k].min
+                self.bestfit[k+'_max'] = params[k].max
+
+        for k in ikeys:
+            self.bestfit['u'+k] = np.std(self.bestfit[k])
+            self.bestfit[k] = np.mean(self.bestfit[k])
+
+        for k in self.bestfit.keys():
+            if not np.isfinite(self.bestfit[k]):
+                self.bestfit[k] = -999
+                
     def to_fits(self, outfile, clobber=True):
         """Save to FITS
 
@@ -44,29 +62,51 @@ class SpecMatchResults(object):
         """
 
         # Save the grid search results
-
-        print grid_result.columns
-        
         columns = []
-        for i,col in enumerate(FITSCOLDEFS):
-            colinfo = FITSCOLDEFS[i]
-            coldata = self.__dict__[colinfo[0]]
-            fitscol = fits.Column(array=coldata, format=colinfo[1], name=colinfo[0], unit=colinfo[3])
+        for i,col in enumerate(self.grid_result.columns):
+            colinfo = col
+            coldata = self.grid_result[col].values
+            fitscol = fits.Column(array=coldata, format='D', name=col)
 
             columns.append(fitscol)
 
-        table_hdu = fits.BinTableHDU.from_columns(columns)
+        grid_hdu = fits.BinTableHDU.from_columns(columns)
 
+        polish_hdus = []
+        # Save the polishing results
+        for i,seg in enumerate(self.polishing_result):
+            columns = []
+            header = fits.Header()
+            for k in seg.keys():
+                colinfo = k
+                coldata = seg[k]
+                if k == 'result':
+                    mini = seg[k]
+                    for p in mini.params.keys():
+                        header[p] = mini.params[p].value
+                else:
+                    fitscol = fits.Column(array=coldata, format='D', name=k)
+
+                columns.append(fitscol)
+                
+            polish_hdus.append(fits.BinTableHDU.from_columns(columns, header=header))
+
+        
         fitsheader = fits.Header()
-        fitsheader.update(self.header)
 
+        ext_defs = {'EXT0': 'PrimaryHDU',
+                    'EXT1': 'Grid search results'}
+        for i,seg in enumerate(self.polishing_result):
+            ext_defs['EXT%d' % (i+2)] = 'Polishing results for wav0=%d' % seg['wav'].min()
+
+        fitsheader.update(ext_defs)
+        fitsheader.update(self.bestfit)
+        
         primary_hdu = fits.PrimaryHDU(header=fitsheader)
-        
-        hdu_list = fits.HDUList([primary_hdu, table_hdu])
-        
+        hdu_list = fits.HDUList([primary_hdu, grid_hdu]+polish_hdus)
+
         hdu_list.writeto(outfile, clobber=clobber)
 
-        
 
 
 

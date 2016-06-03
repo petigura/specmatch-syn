@@ -9,7 +9,7 @@ import smsyn.library
 
 def grid_search(match, param_table0):
     """Grid Search
-
+    
     Perform grid search using starting values listed in a parameter table.
 
     Args:
@@ -36,12 +36,19 @@ def grid_search(match, param_table0):
         if key[:2] == 'sp':
             params[key].vary = True
 
-    params['vsini'].vary = True
+    
 
+    print params.pretty_print()
+    
+    ntest = len(param_table)
+    count = 1
+    print "        teff    logg   fe     vsini   redchi   iter"
     for i, row in param_table.iterrows():
         for key in param_keys:
             params[key].set(row[key])
 
+        params['vsini'].set(param_table0['vsini'].iloc[0], min=0.5, vary=True)
+            
         mini = lmfit.minimize(match.nresid, params)
         
         for key in mini.var_names:
@@ -53,10 +60,14 @@ def grid_search(match, param_table0):
         nresid = match.masked_nresid( mini.params )
         logprob = -0.5 * np.sum(nresid**2) 
         param_table.loc[i,'logprob'] = logprob
-
-
-        print pd.DataFrame(param_table.loc[i]).T
-
+        
+        print "%d/%d:    %d    %3.1f    %3.1f    %3.1f    %4.2f    %d" % (count, ntest, mini.params['teff'].value,
+                                                                    mini.params['logg'].value,
+                                                                    mini.params['fe'].value,
+                                                                    mini.params['vsini'].value,
+                                                                    mini.redchi, mini.nfev)
+        count += 1
+        
     return param_table
 
 def make_matchlist(spec0, libpath, wavmask0, wavlims):
@@ -74,60 +85,6 @@ def make_matchlist(spec0, libpath, wavmask0, wavlims):
     
     return matchlist
 
-
-def grid_search(match, param_table0):
-    """Grid Search
-
-    Perform grid search using starting values listed in a parameter table.
-
-    Args:
-        match (smsyn.match.Match): `Match` object.
-        param_table0 (pandas DataFrame): Table defining the parameters to search
-            over.
-
-    Returns:
-        pandas DataFrame: results of the grid search with the input parameters
-            and the following columns added: `logprob` log likelihood, `chisq`
-            chi-squared, and `rchisq` reduced chisq, `niter` number of 
-            iterations
-    """
-
-    param_keys = param_table0.columns    
-    param_table = param_table0.copy()
-    for col in 'chisq rchisq logprob nfev'.split():
-        param_table[col] = np.nan
-
-    params = lmfit.Parameters()
-    for key in param_keys:
-        params.add(key)
-        params[key].vary = False
-        if key[:2] == 'sp':
-            params[key].vary = True
-
-
-    for i, row in param_table.iterrows():
-        for key in param_keys:
-            params[key].set(row[key])
-
-        params['vsini'].vary = True
-        params['vsini'].min = 0.5
-
-        mini = lmfit.minimize(match.nresid, params)
-        
-        for key in mini.var_names:
-            param_table.loc[i, key] = mini.params[key].value
-        param_table.loc[i,'chisq'] = mini.chisqr
-        param_table.loc[i,'rchisq'] = mini.redchi
-        param_table.loc[i,'nfev'] = mini.nfev
-
-        nresid = match.masked_nresid( mini.params )
-        logprob = -0.5 * np.sum(nresid**2) 
-        param_table.loc[i,'logprob'] = logprob
-
-
-        print pd.DataFrame(param_table.loc[i]).T
-
-    return param_table
 
 def make_matchlist(spec0, libpath, wavmask0, wavlims):
     matchlist = []
@@ -150,8 +107,13 @@ def polish(matchlist, params0, angstrom_per_node=20, objective_method='chi2med')
     Given a list of match object, polish the parameters segment by segment
 
     Args:
+        matchlist (list of smsyn.match.Match objects): list of Match objects.
+            One for each wavelength segment to be fit
+        params0 (lmfit.Parameters): lmfit.Parameters object with initial guesses
         angstrom_per_node (float): approximate separation between continuum and
             spline nodes. Number of nodes will be rounded to nearest integer.
+        objective_method (string): name of objective function. Must be a method
+            of the Match object.
 
     """
 
