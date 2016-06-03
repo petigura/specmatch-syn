@@ -84,16 +84,22 @@ class SpecMatchResults(object):
                     mini = seg[k]
                     for p in mini.params.keys():
                         header[p] = mini.params[p].value
+                elif k == 'objective':
+                    header['OBJFUNC'] = coldata
                 else:
                     fitscol = fits.Column(array=coldata, format='D', name=k)
+                    columns.append(fitscol)
 
-                columns.append(fitscol)
-                
+
             polish_hdus.append(fits.BinTableHDU.from_columns(columns, header=header))
+                
+            
+            
 
         
         fitsheader = fits.Header()
 
+        # Add descriptions of extensions into primary header
         ext_defs = {'EXT0': 'PrimaryHDU',
                     'EXT1': 'Grid search results'}
         for i,seg in enumerate(self.polishing_result):
