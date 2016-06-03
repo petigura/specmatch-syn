@@ -3,15 +3,72 @@ import numpy as np
 import pandas as pd
 from scipy import optimize
 import lmfit
+from astropy.io import fits
 
 from smsyn import conf
-from smsyn import smio
+#from smsyn import smio
 from smsyn import continuum
 from smsyn import specmatch
 from smsyn import coelho
 from smsyn import fftspecfilt
 from smsyn import wlmask
 from smsyn import pdplus
+
+
+
+class SpecMatchResults(object):
+    def __init__(self, grid_result, polishing_result):
+        """SpecMatch Results
+
+        Class to store or read results from a SpecMatch run.
+
+        Args:
+            grid_result (DataFrame): output from `smsyn.specmatch.grid_search`
+            polishing_result (list of dicts): output from `smsyn.specmatch.polish`
+
+        """
+        
+        self.grid_result = grid_result
+        self.polishing_result = polishing_result
+
+        
+    def to_fits(self, outfile, clobber=True):
+        """Save to FITS
+
+        Save a SpecMatchResults object as a mutli-extension fits file.
+
+        Args:
+            outfile (string): name of output file name
+            clobber (bool): if true, will overwrite existing file
+            
+        """
+
+        # Save the grid search results
+
+        print grid_result.columns
+        
+        columns = []
+        for i,col in enumerate(FITSCOLDEFS):
+            colinfo = FITSCOLDEFS[i]
+            coldata = self.__dict__[colinfo[0]]
+            fitscol = fits.Column(array=coldata, format=colinfo[1], name=colinfo[0], unit=colinfo[3])
+
+            columns.append(fitscol)
+
+        table_hdu = fits.BinTableHDU.from_columns(columns)
+
+        fitsheader = fits.Header()
+        fitsheader.update(self.header)
+
+        primary_hdu = fits.PrimaryHDU(header=fitsheader)
+        
+        hdu_list = fits.HDUList([primary_hdu, table_hdu])
+        
+        hdu_list.writeto(outfile, clobber=clobber)
+
+        
+
+
 
 def getpars_lincomb(h5file,group,usemask=True,plot=False,outtext=False):
     """

@@ -1,9 +1,9 @@
 """Module to define the Spectrum class
 
-This module defines the Library object used for specmatch-synth
+This module defines the Spectrum object used for specmatch-synth
 
 Attributes:
-    fitscoldefs (list of tuples): column labels and metadata for output fits files
+    FITSCOLDEFS (list of tuples): column labels and metadata for output fits files
     
     
 """
