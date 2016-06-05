@@ -9,21 +9,8 @@ import smsyn.library
 import smsyn.match
 import smsyn.io.fits
 
-def specmatch(spec0, libfile, outfile, segments, wav_exclude, 
-                      param_table, idx_coarse, idx_fine):
-    """Top level driver for specmatch pipeline
-
-    Args:
-        spec (Spectrum): stellar spectrum shifted onto model wavelength scale
-    """
-    for segment in segments:
-        specmatch_segment(
-            spec0, libfile, outfile, segment, wav_exclude, param_table, 
-            idx_coarse, idx_fine
-        )
-
-def specmatch_segment(spec0, libfile, outfile, segment, wav_exclude, 
-                      param_table, idx_coarse, idx_fine):
+def grid_search(spec0, libfile, segment, wav_exclude, param_table, idx_coarse, 
+                idx_fine):
     """
     Args:
         segment (list): upper and lower bounds of segment
@@ -47,11 +34,10 @@ def specmatch_segment(spec0, libfile, outfile, segment, wav_exclude,
     for _node_wav in node_wav:
         param_table['sp%d' % _node_wav] = 1.0
 
-    param_table_coarse = grid_search(match, param_table.ix[idx_coarse])
+    param_table_coarse = grid_search_loop(match, param_table.ix[idx_coarse])
 
     # For the fine grid search, 
     top = param_table_coarse.sort_values(by='rchisq').head(10) 
-
     tab = param_table.ix[idx_fine]
     tab = tab.drop(idx_coarse)
 
@@ -60,14 +46,11 @@ def specmatch_segment(spec0, libfile, outfile, segment, wav_exclude,
         tab.logg.between(top.logg.min(),top.logg.max()) & 
         tab.fe.between(top.fe.min(),top.fe.max()) 
     ]
-    param_table_fine = grid_search(match, param_table_fine)
-    param_table = pd.concat([param_table_coarse,param_table_fine])
-
-    extname = 'grid_search_%i' % segment[0]
-    smsyn.io.fits.write_dataframe(outfile, extname,param_table,)
+    param_table_fine = grid_search_loop(match, param_table_fine)
+    param_table = pd.concat([param_table_coarse, param_table_fine])
     return param_table
 
-def grid_search(match, param_table0):
+def grid_search_loop(match, param_table0):
     """Grid Search
 
     Perform grid search using starting values listed in a parameter table.
