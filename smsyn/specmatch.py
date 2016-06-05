@@ -7,17 +7,23 @@ import lmfit
 import smsyn.io.spectrum
 import smsyn.library
 import smsyn.match
+import smsyn.io.fits
 
-def specmatch(spec, libfile, segments, wav_exclude):
+def specmatch(spec0, libfile, outfile, segments, wav_exclude, 
+                      param_table, idx_coarse, idx_fine):
     """Top level driver for specmatch pipeline
 
     Args:
         spec (Spectrum): stellar spectrum shifted onto model wavelength scale
     """
-    pass
+    for segment in segments:
+        specmatch_segment(
+            spec0, libfile, outfile, segment, wav_exclude, param_table, 
+            idx_coarse, idx_fine
+        )
 
-def specmatch_segment(spec0, libfile, segment, wav_exclude, param_table, 
-                      idx_coarse, idx_fine):
+def specmatch_segment(spec0, libfile, outfile, segment, wav_exclude, 
+                      param_table, idx_coarse, idx_fine):
     """
     Args:
         segment (list): upper and lower bounds of segment
@@ -47,15 +53,18 @@ def specmatch_segment(spec0, libfile, segment, wav_exclude, param_table,
     top = param_table_coarse.sort_values(by='rchisq').head(10) 
 
     tab = param_table.ix[idx_fine]
+    tab = tab.drop(idx_coarse)
+
     param_table_fine = tab[
         tab.teff.between(top.teff.min(),top.teff.max()) & 
         tab.logg.between(top.logg.min(),top.logg.max()) & 
         tab.fe.between(top.fe.min(),top.fe.max()) 
     ]
-
-    param_table_fine = param_table_fine.drop(idx_coarse)
     param_table_fine = grid_search(match, param_table_fine)
     param_table = pd.concat([param_table_coarse,param_table_fine])
+
+    extname = 'grid_search_%i' % segment[0]
+    smsyn.io.fits.write_dataframe(outfile, extname,param_table,)
     return param_table
 
 def grid_search(match, param_table0):
