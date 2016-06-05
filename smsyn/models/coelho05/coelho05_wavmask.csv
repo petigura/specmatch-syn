@@ -1,4 +1,9 @@
-# This file specifies the regions of spectrum to exclude from the HIRES specmatch
+# This file specifies the regions of the Coelho 2005 models which we
+# exclude from SpecMatch. We identified these regions by comparing the
+# Coelho model of the solar spectrum and a spectrum of
+# ganymede. Regions with errors in line parameters are excluded from
+# the fit. They were originally measured in segments of spectrum
+# corresponding to different HIRES orders. Thus there are gaps in the mask
 start,stop
 # Order 4890
 5018, 5019.5   # Wings of lines looked bad
