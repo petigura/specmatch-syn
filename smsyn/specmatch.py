@@ -2,10 +2,28 @@
 
 """
 import numpy as np
-import lmfit
 import pandas as pd
+import lmfit
+
 import smsyn.spectrum
 import smsyn.library
+
+def specmatch(spec, libfile, segments, wav_exclude):
+    """Top level driver for specmatch pipeline
+
+    Args:
+        spec (Spectrum): stellar spectrum shifted onto model wavelength scale
+        libfile (str): path to library hdf5 file. 
+        segments (list): define segments to fit with lower and upper bounds. 
+            e.g. [[5055, 5130], [5125, 5205]]
+        wav_exclude (list): define wavlengths to exclude from fit
+            e.g. 
+
+        
+
+    """
+
+    
 
 def grid_search(match, param_table0):
     """Grid Search
@@ -53,8 +71,6 @@ def grid_search(match, param_table0):
         nresid = match.masked_nresid( mini.params )
         logprob = -0.5 * np.sum(nresid**2) 
         param_table.loc[i,'logprob'] = logprob
-
-
         print pd.DataFrame(param_table.loc[i]).T
 
     return param_table
@@ -73,7 +89,6 @@ def make_matchlist(spec0, libpath, wavmask0, wavlims):
         matchlist.append(match)
     
     return matchlist
-
 
 def grid_search(match, param_table0):
     """Grid Search

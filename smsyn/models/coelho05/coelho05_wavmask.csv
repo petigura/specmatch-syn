@@ -1,0 +1,64 @@
+# This file specifies the regions of spectrum to exclude from the HIRES specmatch
+start,stop
+# Order 4890
+5018, 5019.5   # Wings of lines looked bad
+5027.5, 5028.5 # Wings of lines looked bad
+5002.2, 5005.5 
+4984.2, 4985.0
+4990, 4991
+5000.5, 5001.5 # center of line looked bad
+5021, 5022.5
+5038.5, 5040   # Line too keep
+5047.5, 5048.5
+5053, 5054
+5011.5, 5013   # Deep line slightly offcenter 
+# Order 5200
+# 5274, 5275.5 # Weird, this was the biggest difference, makes agreement worse
+5214, 5216     # model too narrow
+5217, 5218     # Improved logg
+# 5213, 5219   # combined previous three masked regions
+# 5241, 5245     # Missing lines, telluric?
+5258.5, 5259.5     # Missing lines, telluric?
+5264.8, 5266.4 # mismatch several deep lines, Teff, logg, Fe/H improved
+# 5268, 5269 # Didn't do much
+# 5226, 5228 # Didn't do much
+#
+# Order 5620
+5622, 5626
+5637, 5638
+5643, 5645
+5679, 5651
+5654, 5656
+5674, 5677
+5685, 5687
+5693, 5695
+5659, 5661
+5663, 5665
+# Order 5360
+5414.2, 5416   # Line width was off, helped logg, Feh
+# 5390, 5392   # line narrow, hurt
+5394, 5395.5   # line center off, helped Teff, logg, feh
+5403.5, 5405.5 # line depths off, helped logg
+5410.5, 5411.5 # line center off
+5382, 5382.8
+5377, 5378
+# Order 6100
+6183, 6186.5   # Missing lines
+6138, 6139     # Notching out this missing line helped logg=0.14->0.13
+6163, 6164     # hurt teff
+6115.5,6117    # slightly mis-matched linecenter
+# Order 6210
+# 6214.5, 6217 # Got worse
+6253.5, 6255
+6258.4, 6258.4
+6244, 6245     # helped Teff, logg
+# 6236.5, 6239 # Worse
+# 6219.5, 6222
+# Order 5530
+5532, 5533.5
+# 5534, 5536   # removing hurt
+#5567, 5568
+# 5572, 5574
+# 5601, 5602
+5594, 5595     # Helped logg a bit.
+# 5554.5, 5555.5 # line slightly off center, removing hurt
