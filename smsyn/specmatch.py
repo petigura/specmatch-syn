@@ -2,10 +2,70 @@
 
 """
 import numpy as np
-import lmfit
 import pandas as pd
-import smsyn.spectrum
+import lmfit
+import smsyn.io.spectrum
 import smsyn.library
+import smsyn.match
+import smsyn.io.fits
+
+def specmatch(spec0, libfile, outfile, segments, wav_exclude, 
+                      param_table, idx_coarse, idx_fine):
+    """Top level driver for specmatch pipeline
+
+    Args:
+        spec (Spectrum): stellar spectrum shifted onto model wavelength scale
+    """
+    for segment in segments:
+        specmatch_segment(
+            spec0, libfile, outfile, segment, wav_exclude, param_table, 
+            idx_coarse, idx_fine
+        )
+
+def specmatch_segment(spec0, libfile, outfile, segment, wav_exclude, 
+                      param_table, idx_coarse, idx_fine):
+    """
+    Args:
+        segment (list): upper and lower bounds of segment
+        libfile (str): path to library hdf5 file. 
+        wav_exclude (list): define wavlengths to exclude from fit
+            e.g. [[5018, 5019.5],[5027.5, 5028.5]] 
+    """
+    spec = spec0.copy()
+    lib = smsyn.library.read_hdf(libfile,wavlim=segment)
+    spec = spec[(segment[0] < spec.wav) & (spec.wav < segment[1])]
+    wavmask = np.zeros_like(spec.wav).astype(bool) # Default: no points masked
+    nwav_exclude = len(wav_exclude)
+    for i in range(nwav_exclude):
+        wav_min, wav_max = wav_exclude[i]
+        wavmask[(wav_min < spec.wav) & (spec.wav < wav_max)] = True
+
+    match = smsyn.match.Match(spec, lib, wavmask)
+    
+    # First do a coarse grid search
+    node_wav = spline_nodes(match.spec.wav[0],match.spec.wav[-1])
+    for _node_wav in node_wav:
+        param_table['sp%d' % _node_wav] = 1.0
+
+    param_table_coarse = grid_search(match, param_table.ix[idx_coarse])
+
+    # For the fine grid search, 
+    top = param_table_coarse.sort_values(by='rchisq').head(10) 
+
+    tab = param_table.ix[idx_fine]
+    tab = tab.drop(idx_coarse)
+
+    param_table_fine = tab[
+        tab.teff.between(top.teff.min(),top.teff.max()) & 
+        tab.logg.between(top.logg.min(),top.logg.max()) & 
+        tab.fe.between(top.fe.min(),top.fe.max()) 
+    ]
+    param_table_fine = grid_search(match, param_table_fine)
+    param_table = pd.concat([param_table_coarse,param_table_fine])
+
+    extname = 'grid_search_%i' % segment[0]
+    smsyn.io.fits.write_dataframe(outfile, extname,param_table,)
+    return param_table
 
 def grid_search(match, param_table0):
     """Grid Search
@@ -23,7 +83,7 @@ def grid_search(match, param_table0):
             chi-squared, and `rchisq` reduced chisq, `niter` number of 
             iterations
     """
-
+    nrows = len(param_table0)
     param_keys = param_table0.columns    
     param_table = param_table0.copy()
     for col in 'chisq rchisq logprob nfev'.split():
@@ -38,11 +98,13 @@ def grid_search(match, param_table0):
 
     params['vsini'].vary = True
 
+    print_grid_search()
+    counter=0
     for i, row in param_table.iterrows():
         for key in param_keys:
             params[key].set(row[key])
 
-        mini = lmfit.minimize(match.nresid, params)
+        mini = lmfit.minimize(match.nresid, params, maxfev=100)
         
         for key in mini.var_names:
             param_table.loc[i, key] = mini.params[key].value
@@ -53,96 +115,31 @@ def grid_search(match, param_table0):
         nresid = match.masked_nresid( mini.params )
         logprob = -0.5 * np.sum(nresid**2) 
         param_table.loc[i,'logprob'] = logprob
-
-
-        print pd.DataFrame(param_table.loc[i]).T
-
+        d = dict(param_table.loc[i])
+        d['counter'] = counter 
+        d['nrows'] = nrows
+        print_grid_search(d)
+        counter+=1
     return param_table
 
-def make_matchlist(spec0, libpath, wavmask0, wavlims):
-    matchlist = []
-    for wavlim in wavlims:
-        lib = smsyn.library.read_hdf(libpath,wavlim=wavlim)
-        b = (wavlim[0] < spec0.wav) & (spec0.wav < wavlim[1])                
-
-        spec = smsyn.spectrum.Spectrum(
-            spec0.wav[b], spec0.flux[b], spec0.uflux[b], spec0.header
+def print_grid_search(*args):
+    if len(args)==0:
+        print "          {:4s} {:4s} {:3s} {:4s} {:6s} {:4s}".format(
+            'teff','logg','fe','vsini','rchisq','nfev'
         )
-        wavmask = wavmask0[b]
-        match = smsyn.match.Match(spec, lib, wavmask)
-        matchlist.append(match)
-    
-    return matchlist
+    if len(args)==1:
+        d = args[0]
+        print "{counter:4d}/{nrows:4d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:3.1f}  {rchisq:6.2f} {nfev:4.1f}".format(**d)
 
 
-def grid_search(match, param_table0):
-    """Grid Search
-
-    Perform grid search using starting values listed in a parameter table.
-
-    Args:
-        match (smsyn.match.Match): `Match` object.
-        param_table0 (pandas DataFrame): Table defining the parameters to search
-            over.
-
-    Returns:
-        pandas DataFrame: results of the grid search with the input parameters
-            and the following columns added: `logprob` log likelihood, `chisq`
-            chi-squared, and `rchisq` reduced chisq, `niter` number of 
-            iterations
-    """
-
-    param_keys = param_table0.columns    
-    param_table = param_table0.copy()
-    for col in 'chisq rchisq logprob nfev'.split():
-        param_table[col] = np.nan
-
-    params = lmfit.Parameters()
-    for key in param_keys:
-        params.add(key)
-        params[key].vary = False
-        if key[:2] == 'sp':
-            params[key].vary = True
-
-
-    for i, row in param_table.iterrows():
-        for key in param_keys:
-            params[key].set(row[key])
-
-        params['vsini'].vary = True
-        params['vsini'].min = 0.5
-
-        mini = lmfit.minimize(match.nresid, params)
-        
-        for key in mini.var_names:
-            param_table.loc[i, key] = mini.params[key].value
-        param_table.loc[i,'chisq'] = mini.chisqr
-        param_table.loc[i,'rchisq'] = mini.redchi
-        param_table.loc[i,'nfev'] = mini.nfev
-
-        nresid = match.masked_nresid( mini.params )
-        logprob = -0.5 * np.sum(nresid**2) 
-        param_table.loc[i,'logprob'] = logprob
-
-
-        print pd.DataFrame(param_table.loc[i]).T
-
-    return param_table
-
-def make_matchlist(spec0, libpath, wavmask0, wavlims):
-    matchlist = []
-    for wavlim in wavlims:
-        lib = smsyn.library.read_hdf(libpath,wavlim=wavlim)
-        b = (wavlim[0] < spec0.wav) & (spec0.wav < wavlim[1])                
-
-        spec = smsyn.spectrum.Spectrum(
-            spec0.wav[b], spec0.flux[b], spec0.uflux[b], spec0.header
-        )
-        wavmask = wavmask0[b]
-        match = smsyn.match.Match(spec, lib, wavmask)
-        matchlist.append(match)
-    
-    return matchlist
+def spline_nodes(wav_min, wav_max, angstrom_per_node=20,):
+    # calculate number of spline nodes
+    node_wav_min = np.floor(wav_min)
+    node_wav_max = np.ceil(wav_max)
+    nodes = (node_wav_max - node_wav_min) / angstrom_per_node
+    nodes = int(np.round(nodes))
+    node_wav = np.linspace(node_wav_min, node_wav_max, nodes)
+    return node_wav
 
 def polish(matchlist, params0, angstrom_per_node=20, objective_method='chi2med'):
     """Polish parameters
@@ -171,12 +168,6 @@ def polish(matchlist, params0, angstrom_per_node=20, objective_method='chi2med')
 
         params['vsini'].min = 0.5
 
-        # calculate number of spline nodes
-        node_wav_min = np.floor(match.spec.wav[0])
-        node_wav_max = np.ceil(match.spec.wav[-1])
-        nodes = (node_wav_max - node_wav_min) / angstrom_per_node
-        nodes = int(np.round(nodes))
-        node_wav = np.linspace(node_wav_min, node_wav_max, nodes)
         for _node_wav in node_wav:
             key = 'sp%d' % _node_wav
             params.add(key)
