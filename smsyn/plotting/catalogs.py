@@ -3,13 +3,12 @@ Catalog Plots
 
 Plots for comparing SpecMatch catalogs to other library catalogs
 """
-import isochrone
-import library
+import isochrones
 import os
 import pandas as pd
 import numpy as np
 from matplotlib.pylab import *
-from plotplus import *
+from . import plotplus
 
 k2str = {'teff':'Teff',
          'logg':'log(g)',
@@ -84,44 +83,41 @@ def diffs(comb,axL=None,suffixes=['_lib','_sm'],**kw):
 
     row = 0
     for k in 'teff logg fe'.split():
-        try:
-            sca(axL[row])
-            gca().grid(True)
-            
-            kdiff = k+'_diff'
-            d = comb[kdiff]
+        sca(axL[row])
+        gca().grid(True)
 
-            k0 = k+suffixes[0]
+        kdiff = k+'_diff'
+        d = comb[kdiff]
 
-            scatter(comb[k0],d,**kw)
-            xlabel('%s (%s) [lib]' % (k2tex[k],units[k]) )
-            ylabel('$\Delta$ %s (%s)' % (k2tex[k],units[k]) )
+        k0 = k+suffixes[0]
+
+        scatter(comb[k0],d,**kw)
+        xlabel('%s (%s) [lib]' % (k2tex[k],units[k]) )
+        ylabel('$\Delta$ %s (%s)' % (k2tex[k],units[k]) )
 
 
-            sd = diffstats(d)
-            sdkeys = sd.keys()
-            sdkeys.remove('nout')
-            sd = dict( [(kk+'_'+k,sd[kk]) for kk in sdkeys] )
-            sd = format(sd)
-            sd = dict( [(kk,sd[kk+'_'+k]) for kk in sdkeys])
+        sd = diffstats(d)
+        sdkeys = sd.keys()
+        sdkeys.remove('nout')
+        sd = dict( [(kk+'_'+k,sd[kk]) for kk in sdkeys] )
+        sd = format(sd)
+        sd = dict( [(kk,sd[kk+'_'+k]) for kk in sdkeys])
 
-            mode = 'clean'
-            if mode=='full':
-                s = """\
-    full  sigclip (%(nout)i)
-    diff      %(meandiff)s %(clipmeandiff)s
-    RMS(diff) %(disp)s  %(clipdisp)s""" % sd 
-            elif mode=='clean':
-                s = """\
-    Mean(Diff) %(meandiff)s
-    RMS(Diff)  %(disp)s  """ % sd 
+        mode = 'clean'
+        if mode=='full':
+            s = """\
+full  sigclip (%(nout)i)
+diff      %(meandiff)s %(clipmeandiff)s
+RMS(diff) %(disp)s  %(clipdisp)s""" % sd 
+        elif mode=='clean':
+            s = """\
+Mean(Diff) %(meandiff)s
+RMS(Diff)  %(disp)s  """ % sd 
 
-            AddAnchored(s,3,frameon=False,prop=dict(family='monospace',size='small',alpha=0.9))
-            
+        plotplus.AddAnchored(s,3,frameon=False,prop=dict(family='monospace',size='small',alpha=0.9))
 
-            row+=1
-        except:
-            pass
+
+        row+=1
     gcf().set_tight_layout(True)
 
 def plotdiffs(df,xk,yk,suffixes=['_lib','_sm']):
@@ -175,7 +171,6 @@ def merge_sm_lib(dfsm,dflib,suffixes=['_sm','_lib']):
     return comb 
 
 
-lib = library.loadlibrary('%s/library/library_v11.dat' % os.environ['SM_DIR'])
 
 def twopane(df,axL=None,suffixes=['_lib','_sm']):
     """
@@ -196,7 +191,7 @@ def twopane(df,axL=None,suffixes=['_lib','_sm']):
     sca(axL[0])
     plotdiffs(df,'teff','logg',suffixes=suffixes)
     ylim(1.,5.0)
-    isochrone.plotiso()
+#    isochrone.plotiso()
 
     for l in gca().lines:
         label = l.get_label()
@@ -209,7 +204,7 @@ def twopane(df,axL=None,suffixes=['_lib','_sm']):
         
 #    gca().lines.remove(line)
     legend(fontsize='x-small',ncol=2,numpoints=3,title='Isochrones: Age, [Fe/H]')
-    flip('both')
+    plotplus.flip('both')
 
     sca(axL[1])
     plotdiffs(df,'fe','logg',suffixes=suffixes)
@@ -242,7 +237,7 @@ def fivepane(comb,suffixes=['_lib','_sm']):
     sca(axLtwopane[0])
     xlim(7000,4000)
     sca(axLtwopane[1])
-    flip('y')
+    plotplus.flip('y')
 
     diffs(comb,axL=axLdiffs,c=comb['fe%s'%suffixes[0]],linewidths=0,suffixes=suffixes)
 
@@ -260,7 +255,7 @@ def fivepane(comb,suffixes=['_lib','_sm']):
     
     for ax,panelname in zip(gcf().get_axes(),'ABCDE'):
         sca(ax)
-        AddAnchored(panelname,2,prop={})
+        plotplus.AddAnchored(panelname,2,prop={})
 
 def axreplace(namemap):
     axL = gcf().get_axes()
