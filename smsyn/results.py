@@ -43,7 +43,7 @@ class SpecMatchResults(object):
                 self.bestfit[k+'_max'] = params[k].max
 
         for k in ikeys:
-            self.bestfit['u'+k] = np.std(self.bestfit[k])
+            self.bestfit['u'+k] = np.std(self.bestfit[k]) / np.sqrt(len(polishing_result))
             self.bestfit[k] = np.mean(self.bestfit[k])
 
         for k in self.bestfit.keys():
