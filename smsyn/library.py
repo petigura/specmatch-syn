@@ -11,6 +11,7 @@ import scipy.ndimage as nd
 import scipy.interpolate
 import pandas as pd
 import h5py
+from scipy.spatial import Delaunay
 
 import smsyn.kernels
 import smsyn.wavsol
@@ -108,18 +109,87 @@ class Library(object):
             array: model spectrum flux resampled at the new wavelengths
         
         """
-
         arr = np.array(self.model_table['teff logg fe'.split()])
         arr-=pars
         idx = np.where(np.sum(np.abs(arr) < 1e-3,axis=1)==3)[0]
         assert len(idx)==1, "model at {} not found".format(pars)
-
         spec = self.model_spectra[idx]
-        
         return spec
 
+    def _trilinear_interp(self, teff, logg, fe):
+        self.model_table['dteff'] = np.abs(self.model_table['teff'] - teff)
+        self.model_table['dlogg'] = np.abs(self.model_table['logg'] - logg)
+        self.model_table['dfe'] = np.abs(self.model_table['fe'] - fe)
+
+        teff1,teff2 = self.model_table.sort_values(by='dteff')['teff'] \
+                                      .drop_duplicates()[:2]
+        logg1,logg2 = self.model_table.sort_values(by='dlogg')['logg'] \
+                                      .drop_duplicates()[:2]
+        fe1,fe2 = self.model_table.sort_values(by='dfe')['fe'] \
+                                  .drop_duplicates()[:2]
+
+        corners = itertools.product([teff1,teff2],[logg1,logg2],[fe1,fe2])
+        c = np.vstack( map(self.select_model,corners) )
+        v0 = [teff1, logg1, fe1]
+        v1 = [teff2, logg2, fe2]
+        vi = [teff, logg, fe]
+        flux = trilinear_interp(c,v0,v1,vi)
+        return flux
+
+    def _simplex_interp(self, teff, logg, fe, model_indecies):
+        """
+        Perform barycentric interpolation on simplecies
+
+        Args:
+            teff (float): effective temperature
+            logg (float): surface gravity
+            fe (float): metalicity
+            model_indecies (array): models to use in the interpolation
+
+        Returns:
+            array: spectrum at teff, logg, fe
+
+        """
+
+        ndim = 3
+        model_table = np.array(self.model_table['teff logg fe'.split()])
+        points = model_table[model_indecies]
+        tri = Delaunay(points) # Delaunay triangulation
+        p = np.array([teff, logg, fe]) # cartesian coordinates
+
+        simplex = tri.find_simplex(p)
+#        assert simplex>=0, "outside of simplex"
+
+
+#        print simplex
+        r = tri.transform[simplex,ndim,:]
+        Tinv = tri.transform[simplex,:ndim,:ndim]
+        c = Tinv.dot(p - r)
+        c = np.hstack([c,1.0-c.sum()]) # barycentric coordinates
+
+        # (3,many array)
+        model_indecies_interp = model_indecies[tri.simplices[simplex]]
+        model_spectra = self.model_spectra[model_indecies_interp,:]
+        flux = np.dot(c,model_spectra)
+        if simplex==-1:
+            return np.ones_like(flux)
+        return flux
+
+    def interp_model(self, teff, logg, fe, **interp_kw):
+        interp_mode = interp_kw['mode']
+        if interp_mode == 'trilinear':
+            flux = self._trilinear_interp(teff, logg, fe)
+        elif interp_mode == 'simplex':
+            model_indecies = interp_kw['model_indecies']
+            flux = self._simplex_interp(teff, logg, fe, model_indecies)
+        else:
+            errmsg = "Interpolation mode {} not implemented.".format(
+                interp_mode
+            )
+            raise NameError, errmsg
+        return flux
             
-    def synth(self, wav, teff, logg, fe, vsini, psf, interp_mode='trilinear'):
+    def synth(self, wav, teff, logg, fe, vsini, psf, interp_kw=None):
         """Synthesize a model spectrum
 
         For a given set of wavelengths teff, logg, fe, vsini, psf,
@@ -144,35 +214,12 @@ class Library(object):
                 in the wav argument
 
         """
-
-        
-        self.model_table['dteff'] = np.abs(self.model_table['teff']-teff)
-        self.model_table['dlogg'] = np.abs(self.model_table['logg']-logg)
-        self.model_table['dfe'] = np.abs(self.model_table['fe']-fe)
-
-        teff1,teff2 = self.model_table.sort_values(by='dteff')['teff'].drop_duplicates()[:2]
-        logg1,logg2 = self.model_table.sort_values(by='dlogg')['logg'].drop_duplicates()[:2]
-        fe1,fe2 = self.model_table.sort_values(by='dfe')['fe'].drop_duplicates()[:2]
-
-        corners = itertools.product([teff1,teff2],[logg1,logg2],[fe1,fe2])
-        
-        c = np.vstack( map(self.select_model,corners) )
-    
-        v0 = [teff1, logg1, fe1]
-        v1 = [teff2, logg2, fe2]
-        vi = [teff, logg, fe]
-
-        # Perform interpolation
-        if interp_mode == 'trilinear':
-            s = trilinear_interp(c,v0,v1,vi)
-        else:
-            errmsg = "Interpolation mode {} not implemented.".format(
-                interp_mode
-            )
-            raise NameError, errmsg
-
+        if interp_kw is None:
+            interp_kw = dict(mode='trilinear')
+            
+        flux = self.interp_model(teff, logg, fe, **interp_kw)
         # Resample at the requested wavelengths
-        s = np.interp(wav, self.wav, s)
+        flux = np.interp(wav, self.wav, flux)
 
         # Broaden with rotational-macroturbulent broadening profile
         dvel = smsyn.wavsol.wav_to_dvel(wav)
@@ -189,13 +236,13 @@ class Library(object):
             xi = 0 
     
         varr,M = smsyn.kernels.rotmacro(n,dvel0,xi,vsini)
-        s = nd.convolve1d(s,M) 
+        flux = nd.convolve1d(flux,M) 
 
         # Broaden with PSF (assume gaussian) (km/s)
         if psf > 0: 
-            s = nd.gaussian_filter(s,psf)
+            flux = nd.gaussian_filter(flux,psf)
 
-        return s
+        return flux
 
     
 def read_hdf(filename, wavlim=None):

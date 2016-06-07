@@ -1,0 +1,8 @@
+# Segments of spectrum for HIRES specmatch. Orders are spectral order
+# on the middle chip using the CPS set, starting from 0.
+start, stop
+5200, 5280 # order 3
+5360, 5440 # order 5
+5530, 5610 # order 7
+6000, 6080 # order 12
+6210, 6260 # order 14

@@ -19,10 +19,11 @@ class Match(object):
             lib (smsyn.library.Library): Library object containing
                 the model library and `synth` method
 
-            wavmask (boolean array): same length as spec.wav. If false
+            wavmask (boolean array): same length as spec.wav. If True
                 ignore in the likelihood calculation
                 
         """
+        assert wavmask.dtype==np.dtype('bool'), "mask must be boolean"
 
         self.spec = spec
         self.lib = lib
@@ -86,7 +87,7 @@ class Match(object):
         cont = splrep(wav)
         return cont
         
-    def resid(self, params):
+    def resid(self, params, **kwargs):
         """Residuals
 
         Return the residuals
@@ -99,10 +100,10 @@ class Match(object):
 
         """
         
-        res = self.spec.flux - self.model(params, wav=self.spec.wav) 
+        res = self.spec.flux - self.model(params, wav=self.spec.wav, **kwargs) 
         return res
 
-    def nresid(self, params):
+    def nresid(self, params, **kwargs):
         """Normalized residuals
 
         Args:
@@ -113,13 +114,12 @@ class Match(object):
 
         """
 
-        return self.resid(params) / self.spec.uflux
+        return self.resid(params, **kwargs) / self.spec.uflux
 
-    def masked_nresid(self, params):
+    def masked_nresid(self, params, **kwargs):
         """Masked normalized residuals
 
-        Return the normalized residuals multiplied by the
-        boolean masked defined in self.spec.wavmask
+        Return the normalized residuals with masked wavelengths excluded
 
         Args:
             params  (lmfit.Parameters): see params in self.model
@@ -129,7 +129,7 @@ class Match(object):
 
         """
 
-        return self.nresid(params)[self.wavmask]
+        return self.nresid(params, **kwargs)[~self.wavmask]
 
     def chi2med(self, params):
         _resid = self.resid(params)
