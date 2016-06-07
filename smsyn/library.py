@@ -158,10 +158,6 @@ class Library(object):
         p = np.array([teff, logg, fe]) # cartesian coordinates
 
         simplex = tri.find_simplex(p)
-#        assert simplex>=0, "outside of simplex"
-
-
-#        print simplex
         r = tri.transform[simplex,ndim,:]
         Tinv = tri.transform[simplex,:ndim,:ndim]
         c = Tinv.dot(p - r)
