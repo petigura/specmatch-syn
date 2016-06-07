@@ -14,7 +14,7 @@ from smsyn import fftspecfilt
 from smsyn import wlmask
 from smsyn import pdplus
 
-
+PARAM_KEYS = ['teff', 'logg', 'vsini', 'fe', 'psf']
 
 class SpecMatchResults(object):
     def __init__(self, grid_result, polishing_result):
@@ -31,7 +31,7 @@ class SpecMatchResults(object):
         self.grid_result = grid_result
         self.polishing_result = polishing_result
 
-        self.bestfit = {'teff': [], 'logg': [], 'vsini': [], 'fe': [], 'psf': []}
+        self.bestfit = {k: [] for k in PARAM_KEYS}
         ikeys = self.bestfit.keys()
         for seg in polishing_result:
             result = seg['result']
@@ -113,7 +113,73 @@ class SpecMatchResults(object):
 
         hdu_list.writeto(outfile, clobber=clobber)
 
+def read_fits(filename):
+    """Read results from fits file
 
+    Read in a results object as saved by the results.SpecMatchResults.to_fits
+    method into a new SpecMatchResults object
+
+    Args:
+        filename (string): path to fits file
+        
+    Returns:
+        SpecMatchResults object
+        
+    """
+
+    class _Store_Params(object):
+        def __init__(self, header):
+            params = lmfit.Parameters()
+            for k in PARAM_KEYS:
+                hkey = k.upper()
+                val = header[hkey]
+                min_limit = header[hkey+'_MIN']
+                max_limit = header[hkey+'_MAX']
+                var = header[hkey+'_VARY']
+                
+                if min_limit == -999:
+                    min_limit = -np.inf
+                if max_limit == -999:
+                    max_limit = np.inf
+                
+                params.add(k, value=val,
+                           min=min_limit,
+                           max=max_limit,
+                           vary=var
+                           )
+
+            self.params = params
+            
+                
+    hdulist = fits.open(filename)
+    header = hdulist[0].header
+
+    grid_results = pd.DataFrame(hdulist[1].data)
+    
+    output = []
+    for hdu in hdulist[2:]:
+
+        head = hdu.header
+        df = pd.DataFrame(hdu.data)
+
+        fake_result_obj = _Store_Params(header)
+
+        d = dict(
+            model=df['model'].values, 
+            continuum=df['continuum'].values, 
+            wav=df['wav'].values,
+            resid=df['resid'].values, 
+            objective=head['OBJFUNC'],
+            result=fake_result_obj
+            )
+
+        output.append(d)
+
+
+    smresults = SpecMatchResults(grid_results, output)
+                
+    return smresults
+    
 
 
 def getpars_lincomb(h5file,group,usemask=True,plot=False,outtext=False):

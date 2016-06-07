@@ -79,8 +79,7 @@ def read_fits(filename):
     a Spectrum object
 
     Args:
-        filename (string): path to h5 file that contains the grid
-            of stellar atmosphere models
+        filename (string): path to fits file
         
     Returns:
         Spectrum object
