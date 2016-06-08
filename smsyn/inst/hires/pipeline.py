@@ -1,13 +1,15 @@
 """Module that handels the fitting pipeline for hires
 """
-import smsyn
 import os
+
 import numpy as np
 import pandas as pd
+import lmfit
+
+import smsyn
 import smsyn.io.spectrum
 import smsyn.library
 import smsyn.specmatch
-import lmfit
 
 PACKAGE_DIR = os.path.dirname(smsyn.__file__)
 
