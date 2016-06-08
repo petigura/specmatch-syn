@@ -7,13 +7,12 @@ import pandas as pd
 import smsyn.io.spectrum
 import smsyn.library
 import smsyn.specmatch
+import lmfit
 
 PACKAGE_DIR = os.path.dirname(smsyn.__file__)
 
 class Pipeline(object):
     """Pipeline object
-
-    Top level controller for the K2 photometric pipeline.
 
     Args:
         smfile (str): path to output file where all intermediate results are 
@@ -25,7 +24,6 @@ class Pipeline(object):
             the wavelength regions that we exclude in our fits. If
             None, it's read in from symsyn.libraries
     """
-    valid_modules = ['k2phot','terra','terramulti']
 
     def __init__(self, smfile, libfile, segfile=None, wav_excludefile=None):
         if segfile is None:
@@ -45,9 +43,12 @@ class Pipeline(object):
         self.wav_exclude = wav_exclude
         self.segments = segments
 
-    def grid_search(self, debug=False):
+    def _get_spec_segment(self, segment):
         spec = smsyn.io.spectrum.read_fits(self.smfile)
+        spec = spec[(segment[0] < spec.wav) & (spec.wav < segment[1])]
+        return spec
 
+    def grid_search(self, debug=False):
         # Load up the model library
         lib = smsyn.library.read_hdf(self.libfile,wavlim=[4000,4100])
         param_table = lib.model_table
@@ -82,3 +83,28 @@ class Pipeline(object):
             extname = 'grid_search_%i' % segment[0]
             smsyn.io.fits.write_dataframe(self.smfile, extname,param_table,)
             
+    def lincomb(self, debug=False):
+        ntop = 10
+        for segment in self.segments:
+            extname = 'grid_search_%i' % segment[0]
+            param_table = smsyn.io.fits.read_dataframe(self.smfile, extname)
+            param_table_top = param_table.sort('rchisq').iloc[:ntop]
+            model_indecies = np.array(param_table_top.model_index.astype(int))
+            spec = self._getspec(segment)
+
+            wavmask = np.zeros_like(spec.wav).astype(bool)
+            match = smsyn.match.MatchLincomb(
+                spec, lib, wavmask, model_indecies)
+            nodes = smsyn.specmatch.spline_nodes(spec.wav[0],spec.wav[-1])
+
+            param = lmfit.Parameters()
+            param.add('vsini',value=5)
+            param.add('psf',value=1)
+
+
+            specmatch.add_spline_nodes(params)
+            specmatch.add_model_weights(params, ntop)
+
+            lmout = lmfit.minimize(match.masked_nresid,param)
+            lmout.params
+            print lmfit.fit_report(lmout.params)

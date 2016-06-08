@@ -122,7 +122,24 @@ def spline_nodes(wav_min, wav_max, angstrom_per_node=20,):
     nodes = (node_wav_max - node_wav_min) / angstrom_per_node
     nodes = int(np.round(nodes))
     node_wav = np.linspace(node_wav_min, node_wav_max, nodes)
+    node_wav = node_wav.astype(int)
     return node_wav
+
+def add_spline_nodes(params, node_wav, vary=True):
+    for node in nodes:
+        params.add('sp%i' % node,value=1.0, vary=vary)
+
+def add_model_weights(params, nmodels):
+    value = 1.0 / nmodels
+    for i in range(nmodels):
+        param.add('p%i' % i ,value=value,min=0,max=1)
+
+def get_model_weights(params):
+    nmodels = len([k for k in params.keys() if k[:2]=='mw'])
+    model_weights = [params['mw%i' % i].value for i in range(nmodels)]
+    model_weights = np.array(model_weights)
+    return model_weights
+
 
 def polish(matchlist, params0, angstrom_per_node=20, objective_method='chi2med'):
     """Polish parameters

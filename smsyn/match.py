@@ -99,7 +99,6 @@ class Match(object):
             array: model minus data
 
         """
-        
         res = self.spec.flux - self.model(params, wav=self.spec.wav, **kwargs) 
         return res
 
@@ -172,11 +171,6 @@ class MatchLincomb(Match):
         coeff = np.array(coeff) 
         vsini = params['vsini'].value
         psf = params['psf'].value
-
-        flux = np.dot(coeff, self.lib.model_spectra[self.model_indecies])
-        flux = self.lib._broaden(
-            wav, flux, psf=psf, rotation='rotmacro', teff=5700, vsini=vsini
-        )
         
         _model = self.lib.synth_lincomb(
             wav, self.model_indecies, coeff, vsini, psf
