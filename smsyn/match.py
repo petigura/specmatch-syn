@@ -137,3 +137,49 @@ class Match(object):
         _resid -= med
         _chi2med = np.sum(_resid**2)
         return _chi2med
+
+
+class MatchLincomb(Match):
+    def __init__(self, spec, lib, wavmask, model_indecies):
+        """
+
+        The Match object used for fitting functions
+        
+        Args:
+            spec (smsyn.spectrum.Spectrum): Spectrum object containing
+                the data to be fit
+            lib (smsyn.library.Library): Library object containing
+                the model library and `synth` method
+
+            wavmask (boolean array): same length as spec.wav. If True
+                ignore in the likelihood calculation
+                
+        """
+        assert wavmask.dtype==np.dtype('bool'), "mask must be boolean"
+
+        self.spec = spec
+        self.lib = lib
+        self.wavmask = wavmask
+        self.model_indecies = model_indecies
+        
+    def model(self, params, wav=None):
+        if wav is None:
+            wav = self.spec.wav
+
+        coeff = []
+        for i in range(len(self.model_indecies)):
+            coeff.append( params['p%i' % i].value  )
+        coeff = np.array(coeff) 
+        vsini = params['vsini'].value
+        psf = params['psf'].value
+
+        flux = np.dot(coeff, self.lib.model_spectra[self.model_indecies])
+        flux = self.lib._broaden(
+            wav, flux, psf=psf, rotation='rotmacro', teff=5700, vsini=vsini
+        )
+        
+        _model = self.lib.synth_lincomb(
+            wav, self.model_indecies, coeff, vsini, psf
+        )
+        _model *= self.continuum(params, wav)
+        return _model

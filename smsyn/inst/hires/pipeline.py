@@ -4,6 +4,10 @@ import smsyn
 import os
 import numpy as np
 import pandas as pd
+import smsyn.io.spectrum
+import smsyn.library
+import smsyn.specmatch
+
 PACKAGE_DIR = os.path.dirname(smsyn.__file__)
 
 class Pipeline(object):
