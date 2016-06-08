@@ -8,7 +8,6 @@ import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 class Match(object):
-
     def __init__(self, spec, lib, wavmask):
         """
 
@@ -20,15 +19,15 @@ class Match(object):
             lib (smsyn.library.Library): Library object containing
                 the model library and `synth` method
 
-            wavmask (boolean array): same length as spec.wav. If false
+            wavmask (boolean array): same length as spec.wav. If True
                 ignore in the likelihood calculation
                 
         """
+        assert wavmask.dtype==np.dtype('bool'), "mask must be boolean"
 
         self.spec = spec
         self.lib = lib
         self.wavmask = wavmask
-
 
     def model(self, params, wav=None, **kwargs):
         """Calculate model
@@ -55,12 +54,9 @@ class Match(object):
         psf = params['psf'].value
 
         _model = self.lib.synth(wav, teff, logg, fe, vsini, psf, **kwargs)
-        
         _model *= self.continuum(params, wav)
-
         return _model
 
-    
     def continuum(self, params, wav):
         """Continuum model
 
@@ -79,24 +75,19 @@ class Match(object):
         node_flux = []
         for key in params.keys():
             if key.startswith('sp'):
-                node_wav.append(float(key.replace('sp','')))
-                node_flux.append(params[key].value)
-
-        if len(node_wav) == 0 or len(node_flux) == 0:
-            return np.ones_like(wav)
+                node_wav.append( float( key.replace('sp','') ) )
+                node_flux.append( params[key].value )
 
         assert len(node_wav) > 3 and len(node_flux) > 3, \
             "Too few spline nodes for the continuum model."
             
         node_wav = np.array(node_wav)
         node_flux = np.array(node_flux)
-                
         splrep = InterpolatedUnivariateSpline(node_wav, node_flux)
         cont = splrep(wav)
-
         return cont
         
-    def resid(self, params):
+    def resid(self, params, **kwargs):
         """Residuals
 
         Return the residuals
@@ -109,11 +100,10 @@ class Match(object):
 
         """
         
-        res = self.model(params, wav=self.spec.wav) - self.spec.flux
-
+        res = self.spec.flux - self.model(params, wav=self.spec.wav, **kwargs) 
         return res
 
-    def nresid(self, params):
+    def nresid(self, params, **kwargs):
         """Normalized residuals
 
         Args:
@@ -124,13 +114,12 @@ class Match(object):
 
         """
 
-        return self.resid(params) / self.spec.uflux
+        return self.resid(params, **kwargs) / self.spec.uflux
 
-    def masked_nresid(self, params):
+    def masked_nresid(self, params, **kwargs):
         """Masked normalized residuals
 
-        Return the normalized residuals multiplied by the
-        boolean masked defined in self.spec.wavmask
+        Return the normalized residuals with masked wavelengths excluded
 
         Args:
             params  (lmfit.Parameters): see params in self.model
@@ -140,6 +129,11 @@ class Match(object):
 
         """
 
-        return self.nresid(params)[self.wavmask]
+        return self.nresid(params, **kwargs)[~self.wavmask]
 
-    
+    def chi2med(self, params):
+        _resid = self.resid(params)
+        med = np.median(_resid)
+        _resid -= med
+        _chi2med = np.sum(_resid**2)
+        return _chi2med
