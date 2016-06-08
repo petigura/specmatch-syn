@@ -1,0 +1,125 @@
+"""Module contains class and functions to facilitate calibrating
+specmatch results with touchstone stars.
+"""
+import numpy as np
+import pandas as pd
+import lmfit
+from scipy.interpolate import LinearNDInterpolator
+
+import smsyn.io.fits as smfits
+
+class Calibrator(object):
+    """
+    Calibration object
+
+    Args: 
+        param (str): spectroscopic parameter for calibration
+    """
+    def __init__(self, param):
+        self.param = param
+        extname = {}
+        extname['node_points'] = self.param+'_node_points'
+        extname['node_values'] = self.param+'_node_values'
+        self.extname = extname
+
+    def fit(self, catalog, node_points, suffixes=['_sm','_lib']):
+        """
+        Peform a least squares minimization of linear interpolation paramete
+
+        Args:
+            catalog (pandas.DataFrame): Table with the (uncalibrated) specmatch
+                parameters and the true stellar parameters determine through 
+                some other method.
+            node_points (pandas.DataFrame): Table of points at which to fit for
+                calibration parameters.
+            suffixes (list): Suffixes for the uncalibrated, and calibrate 
+                parameters
+        """
+        self.param_uncal = self.param+suffixes[0]
+        self.param_cal = self.param+suffixes[1]
+
+        self.catalog = catalog
+        self.suffixes = suffixes
+        self.node_points = pd.DataFrame(node_points)
+        self.node_values = pd.DataFrame(node_points[self.param])
+
+        fit_params = lmfit.Parameters()
+        for i in range(len(self.node_points)):
+            fit_params.add('p%i' % i, value=self.node_values.ix[i,self.param])
+
+        def resid(fit_params):
+            for i in range(len(self.node_points)):
+                self.node_values.ix[i,self.param] = fit_params['p%i' % i].value
+            
+            namemap = {}
+            for k in 'teff logg fe'.split():
+                namemap[k+suffixes[0]] = k
+
+            params_uncal = self.catalog.rename(columns=namemap)
+            _resid = (
+                np.array(self.catalog[self.param_cal]).flatten() - 
+                self.transform(params_uncal).flatten()
+            )
+            return _resid
+        out = lmfit.minimize(resid, fit_params, method='nelder')
+        lmfit.report_fit(out.params)
+
+    def to_fits(self, fitsfn):
+        """Save to fits file
+
+        Args:
+            fitsfn (str): Path to fits file
+
+        Returns:
+            None
+        """
+        extname = self.extname
+        smfits.write_dataframe(fitsfn, extname['node_points'], self.node_points)
+        smfits.write_dataframe(fitsfn, extname['node_values'], self.node_values)
+
+    def transform(self, params_uncal):
+        """Transform uncalibrated to calibrated parameters
+
+        Args:
+            params_uncal (dict): uncalibrated parameters with keys: teff, logg,
+                fe
+
+        Return:
+            dict: calibrated parameters
+        """
+        self.node_params = self.node_points.columns
+        points = np.array(self.node_points)
+        values = np.array(self.node_values)
+        points_i = params_uncal[[k for k in self.node_params]]
+        points_i = np.array(points_i)
+
+        if points.shape[1]==1:
+            points = points.flatten()
+            values = values.flatten()
+            idx = np.argsort(points)
+            points = points[idx]
+            values = values[idx]
+            values_i = np.interp(points_i, points, values)
+        else:
+            interp = LinearNDInterpolator(points, values)
+            values_i = interp(points_i)
+        return values_i
+
+    def inv_transform(self, params_cal):
+        """Inverse transformation"""
+        return params_uncal
+
+def read_fits(fitsfn, param):
+    """Restore calibrator object from fits file
+
+    Args:
+        fitsfn (str): path to fits file
+        param (str): teff, logg, fe
+
+    Returns:
+        Calibtrator: object for performing calibration
+    """
+    cal = Calibrator(param)
+    cal.node_points = smfits.read_dataframe(fitsfn, cal.extname['node_points'])
+    cal.node_values = smfits.read_dataframe(fitsfn, cal.extname['node_values'])
+    return cal
