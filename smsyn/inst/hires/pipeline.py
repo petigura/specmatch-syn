@@ -83,28 +83,27 @@ class Pipeline(object):
             extname = 'grid_search_%i' % segment[0]
             smsyn.io.fits.write_dataframe(self.smfile, extname,param_table,)
             
-    def lincomb(self, debug=False):
+    def lincomb(self):
         ntop = 10
         for segment in self.segments:
             extname = 'grid_search_%i' % segment[0]
             param_table = smsyn.io.fits.read_dataframe(self.smfile, extname)
-            param_table_top = param_table.sort('rchisq').iloc[:ntop]
+            param_table_top = param_table.sort_values(by='rchisq').iloc[:ntop]
             model_indecies = np.array(param_table_top.model_index.astype(int))
-            spec = self._getspec(segment)
+            spec = self._get_spec_segment(segment)
+            lib = smsyn.library.read_hdf(self.libfile, wavlim=segment)
 
             wavmask = np.zeros_like(spec.wav).astype(bool)
-            match = smsyn.match.MatchLincomb(
-                spec, lib, wavmask, model_indecies)
-            nodes = smsyn.specmatch.spline_nodes(spec.wav[0],spec.wav[-1])
+            match = smsyn.match.MatchLincomb(spec, lib, wavmask, model_indecies)
 
-            param = lmfit.Parameters()
-            param.add('vsini',value=5)
-            param.add('psf',value=1)
+            params = lmfit.Parameters()
+            nodes = smsyn.specmatch.spline_nodes(
+                spec.wav[0],spec.wav[-1], angstroms_per_node=10
+            )
+            smsyn.specmatch.add_spline_nodes(params, nodes)
+            smsyn.specmatch.add_model_weights(params, ntop)
+            params.add('vsini',value=5)
+            params.add('psf',value=1)
 
-
-            specmatch.add_spline_nodes(params)
-            specmatch.add_model_weights(params, ntop)
-
-            lmout = lmfit.minimize(match.masked_nresid,param)
-            lmout.params
-            print lmfit.fit_report(lmout.params)
+            out = lmfit.minimize(match.masked_nresid,params)
+            print lmfit.fit_report(out.params)

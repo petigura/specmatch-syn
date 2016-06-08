@@ -115,24 +115,24 @@ def print_grid_search(*args):
         print "{counter:4d}/{nrows:4d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:3.1f}  {rchisq:6.2f} {nfev:4.1f}".format(**d)
 
 
-def spline_nodes(wav_min, wav_max, angstrom_per_node=20,):
+def spline_nodes(wav_min, wav_max, angstroms_per_node=20,):
     # calculate number of spline nodes
     node_wav_min = np.floor(wav_min)
     node_wav_max = np.ceil(wav_max)
-    nodes = (node_wav_max - node_wav_min) / angstrom_per_node
+    nodes = (node_wav_max - node_wav_min) / angstroms_per_node
     nodes = int(np.round(nodes))
     node_wav = np.linspace(node_wav_min, node_wav_max, nodes)
     node_wav = node_wav.astype(int)
     return node_wav
 
 def add_spline_nodes(params, node_wav, vary=True):
-    for node in nodes:
+    for node in node_wav:
         params.add('sp%i' % node,value=1.0, vary=vary)
 
 def add_model_weights(params, nmodels):
     value = 1.0 / nmodels
     for i in range(nmodels):
-        param.add('p%i' % i ,value=value,min=0,max=1)
+        params.add('p%i' % i ,value=value,min=0,max=1)
 
 def get_model_weights(params):
     nmodels = len([k for k in params.keys() if k[:2]=='mw'])
