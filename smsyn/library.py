@@ -261,7 +261,10 @@ class Library(object):
         return flux
 
     def synth_lincomb(self, wav, model_indecies, coeff, vsini, psf):
+        assert (coeff >= 0).all(), "coeff must be postive"
+        coeff /= coeff.sum()
         flux = np.dot(coeff, self.model_spectra[model_indecies])
+        flux = np.interp(wav, self.wav, flux) # Resample at input wavelengths
         flux = self._broaden(
             wav, flux, psf=psf, rotation='rotmacro', teff=5700, vsini=vsini
         )
