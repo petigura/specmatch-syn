@@ -184,6 +184,46 @@ class Library(object):
             )
             raise NameError, errmsg
         return flux
+
+    def _broaden_rotmacro(self, flux, dvel, teff, vsini):
+        n = 151 # Correct for VsinI up to ~50 km/s
+        xi = 3.98 + (teff - 5770.0) / 650.0
+        if xi < 0: 
+            xi = 0 
+    
+        varr, M = smsyn.kernels.rotmacro(n, dvel, xi, vsini)
+        flux = nd.convolve1d(flux, M) 
+        return flux
+
+    def _broaden(self, wav, flux, psf=None, rotation='rotmacro', teff=None, 
+                 vsini=None):
+        """
+        Args:
+            wav (array): wavelength
+            flux (array): fluxes
+            psf (float): width of gaussian psf 
+            rotation (str): Treatment of rotation. If 'rotmacro', then teff and
+               vsini must be set. If 'none', then no rotation rotational
+               broadening is used.
+        """
+
+        # Broaden with rotational-macroturbulent broadening profile
+        dvel = smsyn.wavsol.wav_to_dvel(wav)
+        dvel0 = dvel[0]
+        if np.allclose(dvel, dvel[0], rtol=1e-3, atol=1) is False:
+            print "wav not uniform in loglambda, using mean dvel"
+            dvel0 = np.mean(dvel)
+
+        if rotation=='rotmacro':
+            flux = self._broaden_rotmacro(flux, dvel0, teff, vsini)
+        
+        if psf is None:
+            # Broaden with PSF (assume gaussian) (km/s)
+            if psf > 0: 
+                flux = nd.gaussian_filter(flux,psf)
+
+        return flux
+
             
     def synth(self, wav, teff, logg, fe, vsini, psf, interp_kw=None):
         """Synthesize a model spectrum
@@ -214,32 +254,18 @@ class Library(object):
             interp_kw = dict(mode='trilinear')
             
         flux = self.interp_model(teff, logg, fe, **interp_kw)
-        # Resample at the requested wavelengths
-        flux = np.interp(wav, self.wav, flux)
-
-        # Broaden with rotational-macroturbulent broadening profile
-        dvel = smsyn.wavsol.wav_to_dvel(wav)
-        dvel0 = dvel[0]
-        if np.allclose(dvel, dvel[0], rtol=1e-3, atol=1) is False:
-            print "wav not uniform in loglambda, using mean dvel"
-            dvel0 = np.mean(dvel)
-
-        n = 151 # Correct for VsinI up to ~50 km/s
-
-        # Valenti and Fischer macroturb reln ERROR IN PAPER!!!
-        xi = 3.98 + (teff - 5770.0) / 650.0
-        if xi < 0: 
-            xi = 0 
-    
-        varr,M = smsyn.kernels.rotmacro(n,dvel0,xi,vsini)
-        flux = nd.convolve1d(flux,M) 
-
-        # Broaden with PSF (assume gaussian) (km/s)
-        if psf > 0: 
-            flux = nd.gaussian_filter(flux,psf)
-
+        flux = np.interp(wav, self.wav, flux) # Resample at input wavelengths
+        flux = self._broaden(
+            wav, flux, psf=psf, rotation='rotmacro', teff=teff, vsini=vsini
+        )
         return flux
 
+    def synth_lincomb(self, wav, model_indecies, coeff, vsini, psf):
+        flux = np.dot(coeff, self.model_spectra[model_indecies])
+        flux = self._broaden(
+            wav, flux, psf=psf, rotation='rotmacro', teff=5700, vsini=vsini
+        )
+        return flux
     
 def read_hdf(filename, wavlim=None):
     """Read model library grid
