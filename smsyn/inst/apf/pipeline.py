@@ -1,12 +1,11 @@
 """Module that handels the fitting pipeline for hires
 """
 import os
-
 import numpy as np
 import pandas as pd
-import lmfit
 
 import smsyn
+import smsyn.io
 import smsyn.io.spectrum
 import smsyn.library
 import smsyn.specmatch
@@ -19,8 +18,7 @@ class Pipeline(object):
     Top level controller for the SpecMatch pipeline.
 
     Args:
-        smfile (str): path to output file where all intermediate results are 
-            stored
+        smfile (str): path to input spectrum
         libfile (str): path to library file
         segfile (Optional[str]): path to csv file that stores the segment 
             begining and endings. If None, it's read in from smsyn.inst.hires
@@ -47,12 +45,9 @@ class Pipeline(object):
         self.wav_exclude = wav_exclude
         self.segments = segments
 
-    def _get_spec_segment(self, segment):
-        spec = smsyn.io.spectrum.read_fits(self.smfile)
-        spec = spec[(segment[0] < spec.wav) & (spec.wav < segment[1])]
-        return spec
-
     def grid_search(self, debug=False):
+        spec = smsyn.io.spectrum.read_fits(self.smfile)
+
         # Load up the model library
         lib = smsyn.library.read_hdf(self.libfile,wavlim=[4000,4100])
         param_table = lib.model_table
@@ -85,29 +80,5 @@ class Pipeline(object):
             )
 
             extname = 'grid_search_%i' % segment[0]
-            smsyn.io.fits.write_dataframe(self.smfile, extname,param_table,)
+            smsyn.io.fits.write_dataframe(self.smfile, extname,param_table)
             
-    def lincomb(self):
-        ntop = 10
-        for segment in self.segments:
-            extname = 'grid_search_%i' % segment[0]
-            param_table = smsyn.io.fits.read_dataframe(self.smfile, extname)
-            param_table_top = param_table.sort_values(by='rchisq').iloc[:ntop]
-            model_indecies = np.array(param_table_top.model_index.astype(int))
-            spec = self._get_spec_segment(segment)
-            lib = smsyn.library.read_hdf(self.libfile, wavlim=segment)
-
-            wavmask = np.zeros_like(spec.wav).astype(bool)
-            match = smsyn.match.MatchLincomb(spec, lib, wavmask, model_indecies)
-
-            params = lmfit.Parameters()
-            nodes = smsyn.specmatch.spline_nodes(
-                spec.wav[0],spec.wav[-1], angstroms_per_node=10
-            )
-            smsyn.specmatch.add_spline_nodes(params, nodes)
-            smsyn.specmatch.add_model_weights(params, ntop)
-            params.add('vsini',value=5)
-            params.add('psf',value=1)
-
-            out = lmfit.minimize(match.masked_nresid,params)
-            print lmfit.fit_report(out.params)
