@@ -8,7 +8,7 @@ from astropy.io import fits
 
 import smsyn
 
-def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,order=4,specorders=None, verbose=False):
+def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,order=6,specorders=None, verbose=False):
     """Read APf fits spectrum
     
     Read an APF spectrum from the raw, unnormalized fits file
