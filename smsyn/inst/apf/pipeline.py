@@ -1,9 +1,15 @@
 """Module that handels the fitting pipeline for hires
 """
-import smsyn
 import os
 import numpy as np
 import pandas as pd
+
+import smsyn
+import smsyn.io
+import smsyn.io.spectrum
+import smsyn.library
+import smsyn.specmatch
+
 PACKAGE_DIR = os.path.dirname(smsyn.__file__)
 
 class Pipeline(object):
@@ -12,8 +18,7 @@ class Pipeline(object):
     Top level controller for the SpecMatch pipeline.
 
     Args:
-        smfile (str): path to output file where all intermediate results are 
-            stored
+        smfile (str): path to input spectrum
         libfile (str): path to library file
         segfile (Optional[str]): path to csv file that stores the segment 
             begining and endings. If None, it's read in from smsyn.inst.hires
@@ -21,7 +26,6 @@ class Pipeline(object):
             the wavelength regions that we exclude in our fits. If
             None, it's read in from symsyn.libraries
     """
-    valid_modules = ['k2phot','terra','terramulti']
 
     def __init__(self, smfile, libfile, segfile=None, wav_excludefile=None):
         if segfile is None:
@@ -76,5 +80,5 @@ class Pipeline(object):
             )
 
             extname = 'grid_search_%i' % segment[0]
-            smsyn.io.fits.write_dataframe(self.smfile, extname,param_table,)
+            smsyn.io.fits.write_dataframe(self.smfile, extname,param_table)
             

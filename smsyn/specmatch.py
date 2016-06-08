@@ -130,8 +130,13 @@ def polish(matchlist, params0, angstrom_per_node=20, objective_method='chi2med')
     Given a list of match object, polish the parameters segment by segment
 
     Args:
+        matchlist (list of smsyn.match.Match objects): list of Match objects.
+            One for each wavelength segment to be fit
+        params0 (lmfit.Parameters): lmfit.Parameters object with initial guesses
         angstrom_per_node (float): approximate separation between continuum and
             spline nodes. Number of nodes will be rounded to nearest integer.
+        objective_method (string): name of objective function. Must be a method
+            of the Match object.
 
     """
 
