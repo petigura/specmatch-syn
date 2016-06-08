@@ -105,9 +105,21 @@ class Pipeline(object):
                 spec.wav[0],spec.wav[-1], angstroms_per_node=10
             )
             smsyn.specmatch.add_spline_nodes(params, nodes)
-            smsyn.specmatch.add_model_weights(params, ntop)
+            smsyn.specmatch.add_model_weights(params, ntop, min=0.01)
             params.add('vsini',value=5)
             params.add('psf',value=1)
 
             out = lmfit.minimize(match.masked_nresid,params)
             print lmfit.fit_report(out.params)
+
+            mw = smsyn.specmatch.get_model_weights(out.params)
+            mw = np.array(mw)
+            mw /= mw.sum()
+
+            params_out = lib.model_table.iloc[model_indecies]
+            params_out = params_out['teff logg fe'.split()]
+            params_out = pd.DataFrame((params_out.T * mw).T.sum()).T
+            print params_out
+            extname = 'lincomb_%i' % segment[0]
+            smsyn.io.fits.write_dataframe(self.smfile, extname, params_out)
+

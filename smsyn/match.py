@@ -6,9 +6,9 @@ This module defines the Match class that is used in fitting routines.
 
 import numpy as np
 from scipy.interpolate import InterpolatedUnivariateSpline
-
+import smsyn.specmatch
 class Match(object):
-    def __init__(self, spec, lib, wavmask):
+    def __init__(self, spec, lib, wavmask, cont_method='spline-forward-model'):
         """
 
         The Match object used for fitting functions
@@ -21,6 +21,7 @@ class Match(object):
 
             wavmask (boolean array): same length as spec.wav. If True
                 ignore in the likelihood calculation
+            cont_method (str): 
                 
         """
         assert wavmask.dtype==np.dtype('bool'), "mask must be boolean"
@@ -165,15 +166,12 @@ class MatchLincomb(Match):
         if wav is None:
             wav = self.spec.wav
 
-        coeff = []
-        for i in range(len(self.model_indecies)):
-            coeff.append( params['p%i' % i].value  )
-        coeff = np.array(coeff) 
+        mw = smsyn.specmatch.get_model_weights(params)
         vsini = params['vsini'].value
         psf = params['psf'].value
         
         _model = self.lib.synth_lincomb(
-            wav, self.model_indecies, coeff, vsini, psf
+            wav, self.model_indecies, mw, vsini, psf
         )
         _model *= self.continuum(params, wav)
         return _model

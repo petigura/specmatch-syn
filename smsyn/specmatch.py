@@ -129,10 +129,10 @@ def add_spline_nodes(params, node_wav, vary=True):
     for node in node_wav:
         params.add('sp%i' % node,value=1.0, vary=vary)
 
-def add_model_weights(params, nmodels):
+def add_model_weights(params, nmodels, min=0, max=1):
     value = 1.0 / nmodels
     for i in range(nmodels):
-        params.add('p%i' % i ,value=value,min=0,max=1)
+        params.add('mw%i' % i ,value=value,min=min,max=max)
 
 def get_model_weights(params):
     nmodels = len([k for k in params.keys() if k[:2]=='mw'])
