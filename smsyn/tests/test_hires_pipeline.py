@@ -10,4 +10,5 @@ if __name__=="__main__":
     args = psr.parse_args()
     outfile = os.path.join(DATA_DIR,'GANYMEDE_rj76.279.sm.fits')
     pipe = Pipeline(outfile, args.libfile)
-    pipe.grid_search(debug=False)
+    # pipe.grid_search(debug=False)
+    pipe.lincomb()
