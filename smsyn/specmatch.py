@@ -75,7 +75,8 @@ def grid_search_loop(match, param_table0):
     nodes = smsyn.match.spline_nodes(match.spec.wav[0],match.spec.wav[-1])
     smsyn.match.add_spline_nodes(params, nodes, vary=False)
     params['vsini'].vary = True
-
+    params['vsini'].min = 0.2
+    
     print_grid_search()
     counter=0
     for i, row in param_table.iterrows():
@@ -105,12 +106,12 @@ def grid_search_loop(match, param_table0):
 
 def print_grid_search(*args):
     if len(args)==0:
-        print "          {:4s} {:4s} {:3s} {:4s} {:6s} {:4s}".format(
+        print "        {:4s}  {:4s} {:3s}  {:4s}   {:8s} {:4s}".format(
             'teff','logg','fe','vsini','rchisq','nfev'
         )
     if len(args)==1:
         d = args[0]
-        print "{counter:4d}/{nrows:4d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:3.1f}  {rchisq:6.2f} {nfev:4.1f}".format(**d)
+        print "{counter:3d}/{nrows:3d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:6.1f}  {rchisq:8.2f} {nfev:4.0f}".format(**d)
 
 
 def lincomb(spec, libfile, wav_exclude, param_table):
