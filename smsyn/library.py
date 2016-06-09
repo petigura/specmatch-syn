@@ -216,8 +216,8 @@ class Library(object):
 
         if rotation=='rotmacro':
             flux = self._broaden_rotmacro(flux, dvel0, teff, vsini)
-        
-        if psf is None:
+
+        if psf is not None:
             # Broaden with PSF (assume gaussian) (km/s)
             if psf > 0: 
                 flux = nd.gaussian_filter(flux,psf)

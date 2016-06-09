@@ -9,8 +9,15 @@ import smsyn.library
 import smsyn.match
 import smsyn.io.fits
 
-def grid_search(spec0, libfile, segment, wav_exclude, param_table, idx_coarse, 
-                idx_fine):
+def wav_exclude_to_wavmask(wav, wav_exclude):
+    wavmask = np.zeros_like(wav).astype(bool) # Default: no points masked
+    nwav_exclude = len(wav_exclude)
+    for i in range(nwav_exclude):
+        wav_min, wav_max = wav_exclude[i]
+        wavmask[(wav_min < wav) & (wav < wav_max)] = True
+    return wavmask
+
+def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     """
     Args:
         segment (list): upper and lower bounds of segment
@@ -18,22 +25,11 @@ def grid_search(spec0, libfile, segment, wav_exclude, param_table, idx_coarse,
         wav_exclude (list): define wavlengths to exclude from fit
             e.g. [[5018, 5019.5],[5027.5, 5028.5]] 
     """
-    spec = spec0.copy()
-    lib = smsyn.library.read_hdf(libfile,wavlim=segment)
-    spec = spec[(segment[0] < spec.wav) & (spec.wav < segment[1])]
-    wavmask = np.zeros_like(spec.wav).astype(bool) # Default: no points masked
-    nwav_exclude = len(wav_exclude)
-    for i in range(nwav_exclude):
-        wav_min, wav_max = wav_exclude[i]
-        wavmask[(wav_min < spec.wav) & (spec.wav < wav_max)] = True
-
-    match = smsyn.match.Match(spec, lib, wavmask)
+    wavlim = spec.wav[0],spec.wav[-1]
+    lib = smsyn.library.read_hdf(libfile,wavlim=wavlim)
+    wavmask = wav_exclude_to_wavmask(spec.wav, wav_exclude)
+    match = smsyn.match.Match(spec, lib, wavmask, cont_method='spline-dd')
     
-    # First do a coarse grid search
-    node_wav = spline_nodes(match.spec.wav[0],match.spec.wav[-1])
-    for _node_wav in node_wav:
-        param_table['sp%d' % _node_wav] = 1.0
-
     param_table_coarse = grid_search_loop(match, param_table.ix[idx_coarse])
 
     # For the fine grid search, 
@@ -71,24 +67,26 @@ def grid_search_loop(match, param_table0):
     param_table = param_table0.copy()
     for col in 'chisq rchisq logprob nfev'.split():
         param_table[col] = np.nan
-
     params = lmfit.Parameters()
     for key in param_keys:
         params.add(key)
-        params[key].vary = False
-        if key[:2] == 'sp':
-            params[key].vary = True
+        params[key].vary=False
 
+    nodes = smsyn.match.spline_nodes(match.spec.wav[0],match.spec.wav[-1])
+    smsyn.match.add_spline_nodes(params, nodes, vary=False)
     params['vsini'].vary = True
 
     print_grid_search()
     counter=0
     for i, row in param_table.iterrows():
         for key in param_keys:
-            params[key].set(row[key])
+            params[key].value = row[key]
 
-        mini = lmfit.minimize(match.nresid, params, maxfev=100)
-        
+        mini = lmfit.minimize(
+            match.nresid, params, maxfev=100, method='leastsq'
+        )
+        #        mini = lmfit.minimize(match.nresid, params, method='brent')
+
         for key in mini.var_names:
             param_table.loc[i, key] = mini.params[key].value
         param_table.loc[i,'chisq'] = mini.chisqr
@@ -115,31 +113,48 @@ def print_grid_search(*args):
         print "{counter:4d}/{nrows:4d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:3.1f}  {rchisq:6.2f} {nfev:4.1f}".format(**d)
 
 
-def spline_nodes(wav_min, wav_max, angstroms_per_node=20,):
-    # calculate number of spline nodes
-    node_wav_min = np.floor(wav_min)
-    node_wav_max = np.ceil(wav_max)
-    nodes = (node_wav_max - node_wav_min) / angstroms_per_node
-    nodes = int(np.round(nodes))
-    node_wav = np.linspace(node_wav_min, node_wav_max, nodes)
-    node_wav = node_wav.astype(int)
-    return node_wav
+def lincomb(spec, libfile, wav_exclude, param_table):
+    """
+    """
+    ntop = len(param_table)
+    wavlim = spec.wav[0],spec.wav[-1]
+    lib = smsyn.library.read_hdf(libfile,wavlim=wavlim)
+    wavmask = wav_exclude_to_wavmask(spec.wav, wav_exclude)
+    match = smsyn.match.Match(spec, lib, wavmask, cont_method='spline-dd')
+    model_indecies = np.array(param_table.model_index.astype(int))
+    match = smsyn.match.MatchLincomb(
+        spec, lib, wavmask, model_indecies, cont_method='spline-dd'
+    )
+    params = lmfit.Parameters()
+    nodes = smsyn.match.spline_nodes(
+        spec.wav[0],spec.wav[-1], angstroms_per_node=10
+    )
+    smsyn.match.add_spline_nodes(params, nodes, vary=False)
+    smsyn.match.add_model_weights(params, ntop, min=0.01)
+    params.add('vsini',value=5)
+    params.add('psf',value=1.0, vary=False)
 
-def add_spline_nodes(params, node_wav, vary=True):
-    for node in node_wav:
-        params.add('sp%i' % node,value=1.0, vary=vary)
+    def rchisq(params):
+        nresid = match.masked_nresid(params)
+        return np.sum(nresid**2) / len(nresid)
 
-def add_model_weights(params, nmodels, min=0, max=1):
-    value = 1.0 / nmodels
-    for i in range(nmodels):
-        params.add('mw%i' % i ,value=value,min=min,max=max)
+    out = lmfit.minimize(match.masked_nresid, params)
+    nresid = match.masked_nresid(params)
 
-def get_model_weights(params):
-    nmodels = len([k for k in params.keys() if k[:2]=='mw'])
-    model_weights = [params['mw%i' % i].value for i in range(nmodels)]
-    model_weights = np.array(model_weights)
-    return model_weights
+    #print lmfit.fit_report(out)
+    mw = smsyn.match.get_model_weights(out.params)
+    mw = np.array(mw)
+    mw /= mw.sum()
 
+    params_out = lib.model_table.iloc[model_indecies]
+    params_out = params_out['teff logg fe'.split()]
+    params_out = pd.DataFrame((params_out.T * mw).T.sum()).T
+    params_out['vsini'] = out.params['vsini'].value
+    params_out['psf'] = out.params['psf'].value
+    params_out['rchisq0'] = rchisq(params)
+    params_out['rchisq1'] = rchisq(out.params)
+    print params_out
+    return params_out
 
 def polish(matchlist, params0, angstrom_per_node=20, objective_method='chi2med'):
     """Polish parameters
