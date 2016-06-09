@@ -52,6 +52,7 @@ class Pipeline(object):
         spec = spec[(segment[0] < spec.wav) & (spec.wav < segment[1])]
         return spec
 
+
     def grid_search(self, debug=False):
         # Load up the model library
         lib = smsyn.library.read_hdf(self.libfile,wavlim=[4000,4100])
@@ -79,8 +80,9 @@ class Pipeline(object):
         idx_fine = param_table[~param_table.fe.isin([0.2])].index
 
         for segment in segments:
+            spec = self._get_spec_segment(segment)
             param_table = smsyn.specmatch.grid_search(
-                spec, self.libfile, segment, self.wav_exclude, param_table, 
+                spec, self.libfile, self.wav_exclude, param_table, 
                 idx_coarse, idx_fine
             )
 
@@ -92,34 +94,13 @@ class Pipeline(object):
         for segment in self.segments:
             extname = 'grid_search_%i' % segment[0]
             param_table = smsyn.io.fits.read_dataframe(self.smfile, extname)
-            param_table_top = param_table.sort_values(by='rchisq').iloc[:ntop]
-            model_indecies = np.array(param_table_top.model_index.astype(int))
             spec = self._get_spec_segment(segment)
-            lib = smsyn.library.read_hdf(self.libfile, wavlim=segment)
-
-            wavmask = np.zeros_like(spec.wav).astype(bool)
-            match = smsyn.match.MatchLincomb(spec, lib, wavmask, model_indecies)
-
-            params = lmfit.Parameters()
-            nodes = smsyn.specmatch.spline_nodes(
-                spec.wav[0],spec.wav[-1], angstroms_per_node=10
+            param_table_top = param_table.sort_values(by='rchisq').iloc[:ntop]
+            params_out = smsyn.specmatch.lincomb(
+                spec, self.libfile, self.wav_exclude, param_table_top
             )
-            smsyn.specmatch.add_spline_nodes(params, nodes)
-            smsyn.specmatch.add_model_weights(params, ntop, min=0.01)
-            params.add('vsini',value=5)
-            params.add('psf',value=1)
-
-            out = lmfit.minimize(match.masked_nresid,params)
-            print lmfit.fit_report(out.params)
-
-            mw = smsyn.specmatch.get_model_weights(out.params)
-            mw = np.array(mw)
-            mw /= mw.sum()
-
-            params_out = lib.model_table.iloc[model_indecies]
-            params_out = params_out['teff logg fe'.split()]
-            params_out = pd.DataFrame((params_out.T * mw).T.sum()).T
-            print params_out
             extname = 'lincomb_%i' % segment[0]
             smsyn.io.fits.write_dataframe(self.smfile, extname, params_out)
+
+
 
