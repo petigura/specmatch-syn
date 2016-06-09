@@ -16,3 +16,4 @@ if __name__=="__main__":
     
     pipe = Pipeline(outfile, args.libfile)
     pipe.grid_search(debug=False)
+    pipe.lincomb()
