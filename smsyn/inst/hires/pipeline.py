@@ -54,7 +54,7 @@ class Pipeline(object):
 
     def grid_search(self, debug=False):
         # Load up the model library
-        lib = smsyn.library.read_hdf(self.libfile,wavlim=[4000,4100])
+        lib = smsyn.library.read_hdf(self.libfile, wavlim=[4000,4100])
         param_table = lib.model_table
         param_table['vsini'] = 5
         param_table['psf'] = 0
@@ -79,6 +79,7 @@ class Pipeline(object):
         idx_fine = param_table[~param_table.fe.isin([0.2])].index
 
         for segment in segments:
+            spec = self._get_spec_segment(segment)
             param_table = smsyn.specmatch.grid_search(
                 spec, self.libfile, segment, self.wav_exclude, param_table, 
                 idx_coarse, idx_fine

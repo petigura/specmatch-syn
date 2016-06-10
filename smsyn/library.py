@@ -16,6 +16,9 @@ from scipy.spatial import Delaunay
 import smsyn.kernels
 import smsyn.wavsol
 
+# assert the two floats are equal if they are closer than this amount
+FLOAT_TOL = 1e-3 
+
 class Library(object):
     """The Library object
 
@@ -173,6 +176,14 @@ class Library(object):
 
     def interp_model(self, teff, logg, fe, **interp_kw):
         interp_mode = interp_kw['mode']
+        arr = np.array(self.model_table['teff logg fe'.split()])
+        arr_params = np.array([teff, logg, fe])
+        arr-=arr_params
+        idx = np.where(np.sum(np.abs(arr) < FLOAT_TOL,axis=1)==3)[0]
+        if len(idx)==1:
+            flux = self.model_spectra[idx][0]
+            return flux
+        
         if interp_mode == 'trilinear':
             flux = self._trilinear_interp(teff, logg, fe)
         elif interp_mode == 'simplex':
@@ -195,6 +206,11 @@ class Library(object):
         flux = nd.convolve1d(flux, M) 
         return flux
 
+    def _broaden_rot(self, flux, dvel, vsini):
+        varr, M = smsyn.kernels.rot(dvel, vsini)
+        flux = nd.convolve1d(flux, M) 
+        return flux
+
     def _broaden(self, wav, flux, psf=None, rotation='rotmacro', teff=None, 
                  vsini=None):
         """
@@ -206,7 +222,6 @@ class Library(object):
                vsini must be set. If 'none', then no rotation rotational
                broadening is used.
         """
-
         # Broaden with rotational-macroturbulent broadening profile
         dvel = smsyn.wavsol.wav_to_dvel(wav)
         dvel0 = dvel[0]
@@ -216,16 +231,18 @@ class Library(object):
 
         if rotation=='rotmacro':
             flux = self._broaden_rotmacro(flux, dvel0, teff, vsini)
-        
+        if rotation=='rot':        
+            flux = self._broaden_rot(flux, dvel0, vsini)
+
         if psf is None:
             # Broaden with PSF (assume gaussian) (km/s)
             if psf > 0: 
                 flux = nd.gaussian_filter(flux,psf)
 
         return flux
-
             
-    def synth(self, wav, teff, logg, fe, vsini, psf, interp_kw=None):
+    def synth(self, wav, teff, logg, fe, vsini, psf, rotation='rot',
+              interp_kw=None):
         """Synthesize a model spectrum
 
         For a given set of wavelengths teff, logg, fe, vsini, psf,
@@ -248,7 +265,6 @@ class Library(object):
         Returns:
             array: synthesized model calculated at the wavelengths specified
                 in the wav argument
-
         """
         if interp_kw is None:
             interp_kw = dict(mode='trilinear')
@@ -256,7 +272,7 @@ class Library(object):
         flux = self.interp_model(teff, logg, fe, **interp_kw)
         flux = np.interp(wav, self.wav, flux) # Resample at input wavelengths
         flux = self._broaden(
-            wav, flux, psf=psf, rotation='rotmacro', teff=teff, vsini=vsini
+            wav, flux, psf=psf, rotation=rotation, teff=teff, vsini=vsini
         )
         return flux
 
@@ -294,18 +310,13 @@ def read_hdf(filename, wavlim=None):
         if wavlim is None:
             model_spectra = h5['model_spectra'][:]
         else:
-            idxwav, = np.where(
-                (wav > wavlim[0]) &
-                (wav < wavlim[1])
-            )
+            idxwav, = np.where( (wav > wavlim[0]) & (wav < wavlim[1]))
             idxmin = idxwav[0]
             idxmax = idxwav[-1] + 1 # add 1 to include last index when slicing
             model_spectra = h5['model_spectra'][:,idxmin:idxmax]
             wav = wav[idxmin:idxmax]
 
-    lib = Library(
-        header, model_table, wav, model_spectra, wavlim=wavlim
-    )
+    lib = Library(header, model_table, wav, model_spectra, wavlim=wavlim)
     return lib
 
 
@@ -316,7 +327,8 @@ def trilinear_interp(c,v0,v1,vi):
     http://en.wikipedia.org/wiki/Trilinear_interpolation
 
     Args:
-        c (8 x n array): where C each row of C corresponds to the value at one corner
+        c (8 x n array): where C each row of C corresponds to the value at one 
+            corner
         v0 (length 3 array): with the origin
         v1 (length 3 array): with coordinates on the diagonal
         vi (length 3 array): specifying the interpolated coordinates
@@ -325,7 +337,6 @@ def trilinear_interp(c,v0,v1,vi):
         interpolated value of c at vi
         
     """
-
     v0 = np.array(v0) 
     v1 = np.array(v1) 
     vi = np.array(vi) 
