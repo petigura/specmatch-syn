@@ -89,7 +89,9 @@ class Pipeline(object):
             smsyn.io.fits.write_dataframe(self.smfile, extname,param_table,)
             
     def lincomb(self):
-        ntop = 10
+        ntop = 8
+        print "teff logg fe vsini psf rchisq0 rchisq1"
+
         for segment in self.segments:
             extname = 'grid_search_%i' % segment[0]
             param_table = smsyn.io.fits.read_dataframe(self.smfile, extname)
@@ -108,10 +110,17 @@ class Pipeline(object):
             smsyn.specmatch.add_spline_nodes(params, nodes)
             smsyn.specmatch.add_model_weights(params, ntop, min=0.01)
             params.add('vsini',value=5)
-            params.add('psf',value=1)
+            params.add('psf',value=1, vary=False)
 
-            out = lmfit.minimize(match.masked_nresid,params)
-            print lmfit.fit_report(out.params)
+            out = lmfit.minimize(match.masked_nresid, params)
+            def rchisq(params):
+                nresid = match.masked_nresid(params)
+                return np.sum(nresid**2) / len(nresid)
+
+            rchisq0 = rchisq(params)
+            rchisq1 = rchisq(out.params)
+
+            #print lmfit.fit_report(out.params)
 
             mw = smsyn.specmatch.get_model_weights(out.params)
             mw = np.array(mw)
@@ -120,7 +129,19 @@ class Pipeline(object):
             params_out = lib.model_table.iloc[model_indecies]
             params_out = params_out['teff logg fe'.split()]
             params_out = pd.DataFrame((params_out.T * mw).T.sum()).T
-            print params_out
+            
+            d = dict(params_out.ix[0])
+            d['vsini'] = out.params['vsini'].value
+            d['psf'] = out.params['psf'].value
+            d['rchisq0'] = rchisq0
+            d['rchisq1'] = rchisq1
+            outstr = (
+                "{teff:.0f} {logg:.2f} {fe:+.2f} {vsini:.2f} {psf:.2f} " +
+                "{rchisq0:.2f} {rchisq1:.2f}"
+            )
+            outstr = outstr.format(**d)
+            print outstr
+
             extname = 'lincomb_%i' % segment[0]
             smsyn.io.fits.write_dataframe(self.smfile, extname, params_out)
 
