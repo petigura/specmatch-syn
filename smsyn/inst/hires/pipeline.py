@@ -79,6 +79,7 @@ class Pipeline(object):
         idx_fine = param_table[~param_table.fe.isin([0.2])].index
 
         for segment in segments:
+            spec = self._get_spec_segment(segment)
             param_table = smsyn.specmatch.grid_search(
                 spec, self.libfile, segment, self.wav_exclude, param_table, 
                 idx_coarse, idx_fine
