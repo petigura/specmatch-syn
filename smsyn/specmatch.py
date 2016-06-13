@@ -13,10 +13,15 @@ def grid_search(spec0, libfile, segment, wav_exclude, param_table, idx_coarse,
                 idx_fine):
     """
     Args:
-        segment (list): upper and lower bounds of segment
+        spec0 (smsyn.spectrum.Spectrum): the spectrum
         libfile (str): path to library hdf5 file. 
         wav_exclude (list): define wavlengths to exclude from fit
             e.g. [[5018, 5019.5],[5027.5, 5028.5]] 
+        param_table (pandas.DataFrame): table of grid values to search over
+        idx_coarse (list): the indecies of `param_table` to use in the initial
+            coarse search
+        idx_fine (list): the indecies of `param_table` useable for the fine 
+            search.
     """
     spec = spec0.copy()
     lib = smsyn.library.read_hdf(libfile,wavlim=segment)
@@ -87,7 +92,7 @@ def grid_search_loop(match, param_table0):
         for key in param_keys:
             params[key].set(row[key])
         params['vsini'].min = 0.5
-        mini = lmfit.minimize(match.nresid, params, maxfev=100)
+        mini = lmfit.minimize(match.nresid, params, method='leastsq',xtol=1e-3)
         
         for key in mini.var_names:
             param_table.loc[i, key] = mini.params[key].value
@@ -141,7 +146,8 @@ def get_model_weights(params):
     return model_weights
 
 
-def polish(matchlist, params0, angstrom_per_node=20, objective_method='chi2med'):
+def polish(matchlist, params0, angstrom_per_node=20, 
+           objective_method='chi2med'):
     """Polish parameters
     
     Given a list of match object, polish the parameters segment by segment
