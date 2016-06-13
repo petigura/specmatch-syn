@@ -207,7 +207,8 @@ class Library(object):
         return flux
 
     def _broaden_rot(self, flux, dvel, vsini):
-        varr, M = smsyn.kernels.rot(dvel, vsini)
+        n = 151 # Correct for VsinI up to ~50 km/s
+        varr, M = smsyn.kernels.rot(n, dvel, vsini)
         flux = nd.convolve1d(flux, M) 
         return flux
 
@@ -234,7 +235,7 @@ class Library(object):
         if rotation=='rot':        
             flux = self._broaden_rot(flux, dvel0, vsini)
 
-        if psf is None:
+        if psf is not None:
             # Broaden with PSF (assume gaussian) (km/s)
             if psf > 0: 
                 flux = nd.gaussian_filter(flux,psf)
