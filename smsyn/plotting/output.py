@@ -14,6 +14,7 @@ def chisq(df, fig=None, columns=['teff','logg','fe'], **kwargs):
     i = 0
     for col in columns:
         plt.sca(axL[i])
+        plt.semilogy()
         plt.plot(df[col],df['chisq'],**kwargs)
         i+=1
 
