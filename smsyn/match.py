@@ -199,7 +199,6 @@ class MatchLincomb(Match):
         mw = get_model_weights(params)
         vsini = params['vsini'].value
         psf = params['psf'].value
-        
         _model = self.lib.synth_lincomb(
             wav, self.model_indecies, mw, vsini, psf
         )

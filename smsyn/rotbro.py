@@ -58,18 +58,21 @@ def rotbro(dw, s, lcen, vsini, eps=0.6, nres=10):
     sout  = interpolate.splev(dw,tck)
     return sout
 
-def rotkern(dwmax,eps,nres):
+def rotkern(dwmax, u1, nres):
     """
     Rotational broadening kernel
 
+    Args:
+        u1 (float): linear limb-darkening coefficient
+    
     See Gray, _Photospheres_, p.393 or Gray, _Photospheres 2ed_, p.374
 
     # Note: dwmax is assumed constant over the wavelength range of W.
     """
 
     # constants of kernel function
-    c1 = 2.0 * (1.0 - eps) / (np.pi * dwmax * (1.0 - eps/3.0))
-    c2 = eps / (2.0 * dwmax * (1.0 - eps/3.0))	
+    c1 = 2.0 * (1.0 - u1) / (np.pi * dwmax * (1.0 - u1/3.0))
+    c2 = u1 / (2.0 * dwmax * (1.0 - u1/3.0))	
 
     # fraction of max change in W
     dwfrac = np.arange(2*nres + 1,dtype=np.float) / nres - 1.0 
