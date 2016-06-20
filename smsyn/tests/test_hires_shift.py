@@ -16,7 +16,7 @@ if __name__=="__main__":
     name = 'GANYMEDE'
     obs = 'rj76.279'
     inpfile = os.path.join(DATA_DIR,'{}_{}.fits'.format(name,obs))
-    outfile = os.path.join(DATA_DIR,'{}_{}.sm.fits'.format(name,obs))
+    outfile = '{}_{}.sm.fits'.format(name,obs)
     
     psr = ArgumentParser()
     psr.add_argument('libfile',type=str,help="path to library hdf file")

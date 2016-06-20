@@ -9,8 +9,15 @@ import smsyn.library
 import smsyn.match
 import smsyn.io.fits
 
-def grid_search(spec0, libfile, segment, wav_exclude, param_table, idx_coarse, 
-                idx_fine):
+def wav_exclude_to_wavmask(wav, wav_exclude):
+    wavmask = np.zeros_like(wav).astype(bool) # Default: no points masked
+    nwav_exclude = len(wav_exclude)
+    for i in range(nwav_exclude):
+        wav_min, wav_max = wav_exclude[i]
+        wavmask[(wav_min < wav) & (wav < wav_max)] = True
+    return wavmask
+
+def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     """
     Args:
         spec0 (smsyn.spectrum.Spectrum): the spectrum
@@ -23,16 +30,10 @@ def grid_search(spec0, libfile, segment, wav_exclude, param_table, idx_coarse,
         idx_fine (list): the indecies of `param_table` useable for the fine 
             search.
     """
-    spec = spec0.copy()
-    lib = smsyn.library.read_hdf(libfile,wavlim=segment)
-    spec = spec[(segment[0] < spec.wav) & (spec.wav < segment[1])]
-    wavmask = np.zeros_like(spec.wav).astype(bool) # Default: no points masked
-    nwav_exclude = len(wav_exclude)
-    for i in range(nwav_exclude):
-        wav_min, wav_max = wav_exclude[i]
-        wavmask[(wav_min < spec.wav) & (spec.wav < wav_max)] = True
-
-    match = smsyn.match.Match(spec, lib, wavmask)
+    wavlim = spec.wav[0],spec.wav[-1]
+    lib = smsyn.library.read_hdf(libfile,wavlim=wavlim)
+    wavmask = wav_exclude_to_wavmask(spec.wav, wav_exclude)
+    match = smsyn.match.Match(spec, lib, wavmask, cont_method='spline-dd')
     
     # First do a coarse grid search
     node_wav = spline_nodes(match.spec.wav[0], match.spec.wav[-1])
@@ -76,16 +77,16 @@ def grid_search_loop(match, param_table0):
     param_table = param_table0.copy()
     for col in 'chisq rchisq logprob nfev'.split():
         param_table[col] = np.nan
-
     params = lmfit.Parameters()
     for key in param_keys:
         params.add(key)
-        params[key].vary = False
-        if key[:2] == 'sp':
-            params[key].vary = True
+        params[key].vary=False
 
+    nodes = smsyn.match.spline_nodes(match.spec.wav[0],match.spec.wav[-1])
+    smsyn.match.add_spline_nodes(params, nodes, vary=False)
     params['vsini'].vary = True
-
+    params['vsini'].min = 0.2
+    
     print_grid_search()
     counter=0
     for i, row in param_table.iterrows():
@@ -93,7 +94,6 @@ def grid_search_loop(match, param_table0):
             params[key].set(row[key])
         params['vsini'].min = 0.5
         mini = lmfit.minimize(match.nresid, params, method='leastsq',xtol=1e-3)
-        
         for key in mini.var_names:
             param_table.loc[i, key] = mini.params[key].value
         param_table.loc[i,'chisq'] = mini.chisqr
@@ -112,38 +112,12 @@ def grid_search_loop(match, param_table0):
 
 def print_grid_search(*args):
     if len(args)==0:
-        print "          {:4s} {:4s} {:3s} {:4s} {:6s} {:4s}".format(
+        print "        {:4s}  {:4s} {:3s}  {:4s}   {:8s} {:4s}".format(
             'teff','logg','fe','vsini','rchisq','nfev'
         )
     if len(args)==1:
         d = args[0]
-        print "{counter:4d}/{nrows:4d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:3.1f}  {rchisq:6.2f} {nfev:4.1f}".format(**d)
-
-
-def spline_nodes(wav_min, wav_max, angstroms_per_node=20,):
-    # calculate number of spline nodes
-    node_wav_min = np.floor(wav_min)
-    node_wav_max = np.ceil(wav_max)
-    nodes = (node_wav_max - node_wav_min) / angstroms_per_node
-    nodes = int(np.round(nodes))
-    node_wav = np.linspace(node_wav_min, node_wav_max, nodes)
-    node_wav = node_wav.astype(int)
-    return node_wav
-
-def add_spline_nodes(params, node_wav, vary=True):
-    for node in node_wav:
-        params.add('sp%i' % node,value=1.0, vary=vary)
-
-def add_model_weights(params, nmodels, min=0, max=1):
-    value = 1.0 / nmodels
-    for i in range(nmodels):
-        params.add('mw%i' % i ,value=value,min=min,max=max)
-
-def get_model_weights(params):
-    nmodels = len([k for k in params.keys() if k[:2]=='mw'])
-    model_weights = [params['mw%i' % i].value for i in range(nmodels)]
-    model_weights = np.array(model_weights)
-    return model_weights
+        print "{counter:3d}/{nrows:3d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:6.1f}  {rchisq:8.2f} {nfev:4.0f}".format(**d)
 
 
 def polish(matchlist, params0, angstrom_per_node=20, 
