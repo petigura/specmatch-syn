@@ -221,7 +221,7 @@ def diffstats(d,mode='clean'):
     return sd
 
 
-def fivepane(comb,suffixes=['_lib','_sm']):
+def fivepane(comb,suffixes=['_lib','_sm'], color='fe'):
     """
     Five panel representation of the differences between two samples.
     """
@@ -239,7 +239,8 @@ def fivepane(comb,suffixes=['_lib','_sm']):
     sca(axLtwopane[1])
     plotplus.flip('y')
 
-    diffs(comb,axL=axLdiffs,c=comb['fe%s'%suffixes[0]],linewidths=0,suffixes=suffixes)
+    c = comb[color+suffixes[0]]
+    diffs(comb,axL=axLdiffs,c=c,linewidths=0,suffixes=suffixes)
 
     sca(axLdiffs[0])
     ylim(-300,300)
