@@ -232,12 +232,8 @@ class Library(object):
 
         if rotation=='rotmacro':
             flux = self._broaden_rotmacro(flux, dvel0, teff, vsini)
-<<<<<<< HEAD
         if rotation=='rot':        
             flux = self._broaden_rot(flux, dvel0, vsini)
-=======
->>>>>>> master
-
         if psf is not None:
             # Broaden with PSF (assume gaussian) (km/s)
             if psf > 0: 

@@ -36,7 +36,7 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     match = smsyn.match.Match(spec, lib, wavmask, cont_method='spline-dd')
     
     # First do a coarse grid search
-    node_wav = spline_nodes(match.spec.wav[0], match.spec.wav[-1])
+    node_wav = smsyn.match.spline_nodes(match.spec.wav[0], match.spec.wav[-1])
     for _node_wav in node_wav:
         param_table['sp%d' % _node_wav] = 1.0
 
