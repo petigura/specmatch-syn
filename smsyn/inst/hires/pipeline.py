@@ -101,34 +101,8 @@ class Pipeline(object):
             params_out = smsyn.specmatch.lincomb(
                 spec, self.libfile, self.wav_exclude, param_table_top
             )
-            smsyn.specmatch.add_spline_nodes(params, nodes)
-            smsyn.specmatch.add_model_weights(params, ntop, min=0.01)
-            params.add('vsini',value=5)
-            params.add('psf',value=1, vary=False)
-
-            out = lmfit.minimize(match.masked_nresid, params)
-            def rchisq(params):
-                nresid = match.masked_nresid(params)
-                return np.sum(nresid**2) / len(nresid)
-
-            rchisq0 = rchisq(params)
-            rchisq1 = rchisq(out.params)
-
-            #print lmfit.fit_report(out.params)
-
-            mw = smsyn.specmatch.get_model_weights(out.params)
-            mw = np.array(mw)
-            mw /= mw.sum()
-
-            params_out = lib.model_table.iloc[model_indecies]
-            params_out = params_out['teff logg fe'.split()]
-            params_out = pd.DataFrame((params_out.T * mw).T.sum()).T
             
             d = dict(params_out.ix[0])
-            d['vsini'] = out.params['vsini'].value
-            d['psf'] = out.params['psf'].value
-            d['rchisq0'] = rchisq0
-            d['rchisq1'] = rchisq1
             outstr = (
                 "{teff:.0f} {logg:.2f} {fe:+.2f} {vsini:.2f} {psf:.2f} " +
                 "{rchisq0:.2f} {rchisq1:.2f}"

@@ -36,10 +36,6 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     match = smsyn.match.Match(spec, lib, wavmask, cont_method='spline-dd')
     
     # First do a coarse grid search
-    node_wav = smsyn.match.spline_nodes(match.spec.wav[0], match.spec.wav[-1])
-    for _node_wav in node_wav:
-        param_table['sp%d' % _node_wav] = 1.0
-
     param_table_coarse = grid_search_loop(match, param_table.ix[idx_coarse])
 
     # For the fine grid search, 
@@ -118,6 +114,48 @@ def print_grid_search(*args):
     if len(args)==1:
         d = args[0]
         print "{counter:3d}/{nrows:3d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:6.1f}  {rchisq:8.2f} {nfev:4.0f}".format(**d)
+
+def lincomb(spec, libfile, wav_exclude, param_table):
+    """
+    """
+    ntop = len(param_table)
+    wavlim = spec.wav[0],spec.wav[-1]
+    lib = smsyn.library.read_hdf(libfile,wavlim=wavlim)
+    wavmask = wav_exclude_to_wavmask(spec.wav, wav_exclude)
+    match = smsyn.match.Match(spec, lib, wavmask, cont_method='spline-dd')
+    model_indecies = np.array(param_table.model_index.astype(int))
+    match = smsyn.match.MatchLincomb(
+        spec, lib, wavmask, model_indecies, cont_method='spline-dd'
+    )
+    params = lmfit.Parameters()
+    nodes = smsyn.match.spline_nodes(
+        spec.wav[0],spec.wav[-1], angstroms_per_node=10
+    )
+    smsyn.match.add_spline_nodes(params, nodes, vary=False)
+    smsyn.match.add_model_weights(params, ntop, min=0.01)
+    params.add('vsini',value=5)
+    params.add('psf',value=1.0, vary=False)
+
+    def rchisq(params):
+        nresid = match.masked_nresid(params)
+        return np.sum(nresid**2) / len(nresid)
+
+    out = lmfit.minimize(match.masked_nresid, params)
+    nresid = match.masked_nresid(params)
+
+    #print lmfit.fit_report(out)
+    mw = smsyn.match.get_model_weights(out.params)
+    mw = np.array(mw)
+    mw /= mw.sum()
+
+    params_out = lib.model_table.iloc[model_indecies]
+    params_out = params_out['teff logg fe'.split()]
+    params_out = pd.DataFrame((params_out.T * mw).T.sum()).T
+    params_out['vsini'] = out.params['vsini'].value
+    params_out['psf'] = out.params['psf'].value
+    params_out['rchisq0'] = rchisq(params)
+    params_out['rchisq1'] = rchisq(out.params)
+    return params_out
 
 
 def polish(matchlist, params0, angstrom_per_node=20, 
