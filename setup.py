@@ -1,8 +1,8 @@
-from distutils.core import setup, Extension
+from setuptools import setup, find_packages
 
 setup(
     name="smsyn-package",
     version="2.0b",
     author="Erik Petigura, BJ Fulton",
-    packages =['smsyn']
+    packages = find_packages()
     )
