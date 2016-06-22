@@ -4,5 +4,5 @@ Spectrum Object
 =============================
 .. module:: smsyn
 	    
-.. automodule:: smsyn.spectrum
+.. automodule:: smsyn.io.spectrum
    :members:
