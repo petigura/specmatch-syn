@@ -290,7 +290,7 @@ texinfo_documents = [
 
 
 import sys
-from unittest.mock import MagicMock
+from mock import Mock as MagicMock
 
 class Mock(MagicMock):
     @classmethod
