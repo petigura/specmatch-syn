@@ -4,5 +4,5 @@ setup(
     name="smsyn-package",
     version="2.0b",
     author="Erik Petigura, BJ Fulton",
-    packages = find_packages()
+    packages = ['smsyn', 'smsyn.io', 'smsyn.inst.hires','smsyn.inst.apf', 'smsyn.plotting']
     )
