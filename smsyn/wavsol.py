@@ -1,6 +1,5 @@
 import numpy as np
 from numpy import ma
-from scipy.stats import nanstd, nanmean, nanmedian
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 SPEED_OF_LIGHT = 2.99792e5 # Speed of light [km/s] 
