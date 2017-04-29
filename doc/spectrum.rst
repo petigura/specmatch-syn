@@ -2,7 +2,7 @@
 
 Spectrum Object
 =============================
-.. module:: smsyn
+.. module:: smsyn.io
 	    
-.. automodule:: smsyn.spectrum
+.. automodule:: smsyn.io.spectrum
    :members:

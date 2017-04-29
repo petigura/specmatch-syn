@@ -11,14 +11,14 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
-   library
-   spectrum
-   match
+   installation
+   quickstart
+   api
 
-Indices and tables
-==================
+
+Indices and tables for Python code
+====================================
 
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-
