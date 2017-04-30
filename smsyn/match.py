@@ -35,10 +35,11 @@ class Match(object):
         self.lib = lib
         self.wavmask = wavmask
 
-        cont_method = 'spline-fm'
-        if kwargs.has_key('cont_method'):
-            cont_method = kwargs['cont_method']
-        self.cont_method = cont_method
+        assert kwargs.has_key('cont_method'), "Must contain cont_method"
+        self.cont_method = kwargs['cont_method']
+
+        assert kwargs.has_key('rot_method'), "Must contain rot_method"
+        self.rot_method = kwargs['rot_method']
 
     def model(self, params, wav=None, **kwargs):
         """Calculate model
@@ -64,7 +65,9 @@ class Match(object):
         vsini = params['vsini'].value
         psf = params['psf'].value
 
-        _model = self.lib.synth(wav, teff, logg, fe, vsini, psf, **kwargs)
+        _model = self.lib.synth(
+            wav, teff, logg, fe, vsini, psf, self.rot_method, **kwargs
+        )
         return _model
 
     def spline(self, params, wav):
@@ -150,7 +153,8 @@ class Match(object):
 
         """
 
-        return self.nresid(params, **kwargs)[~self.wavmask]
+        _out = self.nresid(params, **kwargs)[~self.wavmask]
+        return _out
 
     def chi2med(self, params):
         _resid = self.resid(params)

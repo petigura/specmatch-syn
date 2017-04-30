@@ -212,14 +212,14 @@ class Library(object):
         flux = nd.convolve1d(flux, M) 
         return flux
 
-    def _broaden(self, wav, flux, psf=None, rotation='rotmacro', teff=None, 
+    def _broaden(self, wav, flux, psf=None, rot_method='rotmacro', teff=None, 
                  vsini=None):
         """
         Args:
             wav (array): wavelength
             flux (array): fluxes
             psf (float): width of gaussian psf 
-            rotation (str): Treatment of rotation. If 'rotmacro', then teff and
+            rot_method (str): Treatment of rotation. If 'rotmacro', then teff and
                vsini must be set. If 'none', then no rotation rotational
                broadening is used.
         """
@@ -230,10 +230,13 @@ class Library(object):
             print "wav not uniform in loglambda, using mean dvel"
             dvel0 = np.mean(dvel)
 
-        if rotation=='rotmacro':
+        if rot_method=='rotmacro':
             flux = self._broaden_rotmacro(flux, dvel0, teff, vsini)
-        if rotation=='rot':        
+        elif rot_method=='rot':        
             flux = self._broaden_rot(flux, dvel0, vsini)
+        else:        
+            assert False,'invalid rot_method' 
+
         if psf is not None:
             # Broaden with PSF (assume gaussian) (km/s)
             if psf > 0: 
@@ -241,7 +244,7 @@ class Library(object):
 
         return flux
             
-    def synth(self, wav, teff, logg, fe, vsini, psf, rotation='rot',
+    def synth(self, wav, teff, logg, fe, vsini, psf, rot_method,
               interp_kw=None):
         """Synthesize a model spectrum
 
@@ -251,7 +254,7 @@ class Library(object):
             1. Determine the 8 coelho models surounding the (teff,logg,fe)
             2. Perform trilinear interpolation
             3. Resample onto new wavelength scale
-            4. Broaden with rot-macro turbulence
+            4. Broaden with rotational kernel {'rot','rotmacro'}
             5. Broaden with PSF (assume gaussian)
 
         Args:
@@ -272,7 +275,7 @@ class Library(object):
         flux = self.interp_model(teff, logg, fe, **interp_kw)
         flux = np.interp(wav, self.wav, flux) # Resample at input wavelengths
         flux = self._broaden(
-            wav, flux, psf=psf, rotation=rotation, teff=teff, vsini=vsini
+            wav, flux, psf=psf, rot_method=rot_method, teff=teff, vsini=vsini
         )
         return flux
 
@@ -282,7 +285,7 @@ class Library(object):
         flux = np.dot(coeff, self.model_spectra[model_indecies])
         flux = np.interp(wav, self.wav, flux) # Resample at input wavelengths
         flux = self._broaden(
-            wav, flux, psf=psf, rotation='rotmacro', teff=5700, vsini=vsini
+            wav, flux, psf=psf, rot_method='rotmacro', teff=5700, vsini=vsini
         )
         return flux
     
