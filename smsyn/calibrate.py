@@ -41,7 +41,9 @@ class Calibrator(object):
         self.catalog = catalog
         self.suffixes = suffixes
         self.node_points = pd.DataFrame(node_points)
-        self.node_values = pd.DataFrame(node_points[self.param])
+
+        node_values = np.zeros(len(node_points))
+        self.node_values = pd.DataFrame({self.param:node_values})
 
         fit_params = lmfit.Parameters()
         for i in range(len(self.node_points)):
@@ -60,8 +62,9 @@ class Calibrator(object):
                 np.array(self.catalog[self.param_cal]).flatten() - 
                 self.transform(params_uncal).flatten()
             )
+
             return _resid
-        out = lmfit.minimize(resid, fit_params, method='nelder')
+        out = lmfit.minimize(resid, fit_params, method='fmin')
         lmfit.report_fit(out.params)
 
     def to_fits(self, fitsfn):
@@ -81,8 +84,8 @@ class Calibrator(object):
         """Transform uncalibrated to calibrated parameters
 
         Args:
-            params_uncal (dict): uncalibrated parameters with keys: teff, logg,
-                fe
+            params_uncal (dict): uncalibrated parameters with keys: 
+                teff, logg, fe
 
         Return:
             dict: calibrated parameters
@@ -103,11 +106,15 @@ class Calibrator(object):
         else:
             interp = LinearNDInterpolator(points, values)
             values_i = interp(points_i)
-        return values_i
+            
 
-    def inv_transform(self, params_cal):
-        """Inverse transformation"""
-        return params_uncal
+        params_uncal['temp'] = values_i.reshape(-1)
+        if params_uncal['temp'].isnull().sum() > 0:
+            print params_uncal[params_uncal.temp.isnull()]
+        params_cal = np.array(params_uncal[self.param]) + values_i.reshape(-1)
+
+        
+        return params_cal
 
 def read_fits(fitsfn, param):
     """Restore calibrator object from fits file

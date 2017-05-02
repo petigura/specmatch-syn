@@ -181,6 +181,7 @@ def polish(pipe):
         
         pipe.polish_output[segment[0]] = output
 
+import smsyn.io.fits
 
 def read_pickle(pklfn,verbose=False):
     """
@@ -201,6 +202,7 @@ def read_pickle(pklfn,verbose=False):
         d['obs'] = obs
         d['segment0'] = segment[0]
         d['segment1'] = segment[1]
+        d['method'] = 'polish'
         for k in keys:
             s += "{:.2f} ".format(output['result'].params[k].value)
             d[k] = output['result'].params[k].value
@@ -209,5 +211,17 @@ def read_pickle(pklfn,verbose=False):
             print s
         out.append(d)
 
+    for segment in pipe.segments:
+        extname = 'lincomb_%i' % segment[0]
+        d = smsyn.io.fits.read_dataframe(pklfn.replace('pkl','fits'),extname)
+        d = dict(d.iloc[0])
+        d['name'] = name
+        d['obs'] = obs
+        d['segment0'] = segment[0]
+        d['segment1'] = segment[1]
+        d['method'] = 'lincomb'
+        out += [d]
+
     out = pd.DataFrame(out)
+
     return out
