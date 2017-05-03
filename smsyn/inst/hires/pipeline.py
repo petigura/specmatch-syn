@@ -11,6 +11,7 @@ import smsyn
 import smsyn.io.spectrum
 import smsyn.library
 import smsyn.specmatch
+import smsyn.io.fits
 
 PACKAGE_DIR = os.path.dirname(smsyn.__file__)
 
@@ -116,8 +117,9 @@ def lincomb(pipe):
         pipe (Pipeline): object
 
     """
-    ntop = 8
+    ntop = 6
     print "teff logg fe vsini psf rchisq0 rchisq1"
+    pipe.lincomb_output = {}
     for segment in pipe.segments:
         extname = 'grid_search_%i' % segment[0]
         param_table = smsyn.io.fits.read_dataframe(pipe.smfile, extname)
@@ -125,20 +127,15 @@ def lincomb(pipe):
         print "Linear Combinations: {}".format(spec.__repr__())
 
         param_table_top = param_table.sort_values(by='rchisq').iloc[:ntop]
-        params_out = smsyn.specmatch.lincomb(
+        output = smsyn.specmatch.lincomb(
             spec, pipe.libfile, pipe.wav_exclude, param_table_top
         )
-
-        d = dict(params_out.ix[0])
-        outstr = (
-            "{teff:.0f} {logg:.2f} {fe:+.2f} {vsini:.2f} {psf:.2f} " +
-            "{rchisq0:.2f} {rchisq1:.2f}"
-        )
-        outstr = outstr.format(**d)
-        print outstr
-
         extname = 'lincomb_%i' % segment[0]
-        smsyn.io.fits.write_dataframe(pipe.smfile, extname, params_out)
+        smsyn.io.fits.write_dataframe(
+            pipe.smfile, extname, output['params_out']
+        )
+        pipe.lincomb_output[segment[0]] = output
+
 
 def polish(pipe):
     """
@@ -164,28 +161,24 @@ def polish(pipe):
             spec, lib, wavmask, cont_method='spline-fm',rot_method='rotmacro'
         )
 
+        # Attach parameters from previous step. Starting at a low value of
+        # vsini seems to help convergence
         lm_params0 = lmfit.Parameters()
         lm_params0.add_many(
-            ('teff',params0.teff),
-            ('logg',params0.logg),
-            ('fe', params0.fe),
-            ('vsini', 10),
-            ('psf', 1.5),
+            ('teff', params0.teff),
+            ('logg', params0.logg),
+            ('fe',  params0.fe),
+            ('vsini',0.1), 
         )
-        lm_params0['psf'].vary=False
         output = smsyn.specmatch.polish(
-            match, lm_params0, angstrom_per_node=10, 
-            objective_method='masked_nresid'
+            match, lm_params0, 1.6, 0.1, angstrom_per_node=10, 
         )
 
-        
         pipe.polish_output[segment[0]] = output
-
-import smsyn.io.fits
 
 def read_pickle(pklfn,verbose=False):
     """
-    Perform the polishing step using the lincomb step as a starting point
+    Read the parameters from the pickle save function
     """
 
     with open(pklfn,'r') as f:
