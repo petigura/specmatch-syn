@@ -217,4 +217,4 @@ def read_pickle(pklfn,verbose=False):
 
     out = pd.DataFrame(out)
 
-    return out
+    return pipe, out 
