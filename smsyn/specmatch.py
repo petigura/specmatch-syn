@@ -121,7 +121,11 @@ def print_grid_search(*args):
         )
     if len(args)==1:
         d = args[0]
-        print "{counter:3d}/{nrows:3d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} {vsini:6.1f}  {rchisq:8.2f} {nfev:4.0f}".format(**d)
+        s = ""
+        s += "{counter:3d}/{nrows:3d} {teff:4.0f} {logg:4.1f} {fe:+2.1f} "
+        s += "{vsini:6.1f}  {rchisq:8.2f} {nfev:4.0f}"
+        s = s.format(**d)
+        print s
 
 def lincomb(spec, libfile, wav_exclude, param_table):
     """
@@ -134,7 +138,7 @@ def lincomb(spec, libfile, wav_exclude, param_table):
     model_indecies = np.array(param_table.model_index.astype(int))
     match = smsyn.match.MatchLincomb(
         spec, lib, wavmask, model_indecies, cont_method='spline-dd',
-        rot_method='rot'
+        rot_method='rotmacro'
     )
     params = lmfit.Parameters()
     nodes = smsyn.match.spline_nodes(
@@ -142,14 +146,28 @@ def lincomb(spec, libfile, wav_exclude, param_table):
     )
     smsyn.match.add_spline_nodes(params, nodes, vary=False)
     smsyn.match.add_model_weights(params, ntop, min=0.01)
-    params.add('vsini',value=5)
-    params.add('psf',value=1.0, vary=False)
+    params.add('vsini',value=10,min=0)
+    params.add('psf',value=0, vary=False,min=0,max=3)
 
-    def rchisq(params):
+    nresid = match.masked_nresid(params)
+    num_points = len(nresid)
+
+    def chisq(params):
         nresid = match.masked_nresid(params)
-        return np.sum(nresid**2) / len(nresid)
+        return np.sum(nresid**2) 
+        
+    def rchisq(params):
+        return chisq(params) / num_points
 
-    out = lmfit.minimize(match.masked_nresid, params)
+    def objective(params):
+        _chisq = chisq(params)
+        _penalty = 0.5 * ((params['psf'].value - 1.7)/ 0.5)**2
+        _obj = _chisq + _penalty
+        #print _obj, params['vsini'].value, params['psf'].value
+        return _obj
+
+    out = lmfit.minimize(match.masked_nresid, params,method='nelder')
+
     nresid = match.masked_nresid(params)
 
     #print lmfit.fit_report(out)
@@ -164,9 +182,25 @@ def lincomb(spec, libfile, wav_exclude, param_table):
     params_out['psf'] = out.params['psf'].value
     params_out['rchisq0'] = rchisq(params)
     params_out['rchisq1'] = rchisq(out.params)
-    return params_out
 
-def polish(match, params0, angstrom_per_node=20, objective_method='nresid'):
+    d = dict(params_out.ix[0])
+    outstr = (
+        "{teff:.0f} {logg:.2f} {fe:+.2f} {vsini:.2f} {psf:.2f} " +
+        "{rchisq0:.2f} {rchisq1:.2f}"
+    )
+    outstr = outstr.format(**d)
+    print outstr
+    rchisq = np.sum(match.masked_nresid(params)**2) / len(nresid)
+
+    d = dict(
+        rchisq = rchisq, 
+        params_out = params_out, 
+        model=match.model(out.params),
+        wav=match.spec.wav, resid=match.resid(params), 
+    )
+    return d
+
+def polish(match, params0, psf, psf_err, angstrom_per_node=20):
     """Polish parameters
     
     Given a list of match object, polish the parameters segment by segment
@@ -196,7 +230,17 @@ def polish(match, params0, angstrom_per_node=20, objective_method='nresid'):
         params[name].max = params0[name].max
 
     params['vsini'].min = 0
-    params['psf'].vary =False
+    params['logg'].min = 1.0
+    params['logg'].max = 5.0
+    params['teff'].min = 4500
+    params['teff'].max = 7000
+    params['fe'].min = -2.0
+    params['fe'].max = 0.5
+
+    params.add('psf')
+    params['psf'].vary = False
+    params['psf'].min = 0
+    params['psf'].value = psf
 
     wavlim = match.spec['wav'][[0,-1]]
     node_wav = smsyn.match.spline_nodes(
@@ -208,20 +252,40 @@ def polish(match, params0, angstrom_per_node=20, objective_method='nresid'):
         params.add(key)
         params[key].value = 1.0
 
-    objective = getattr(match,objective_method)
-    def iter_cb(params, iter, resid):
-        pass
-    out = lmfit.minimize(
-        objective, params, method='leastsq', iter_cb=iter_cb
-    )
-    resid = match.resid(out.params)
+    def chisq(params):
+        nresid = match.masked_nresid(params)
+        _chisq = np.sum(nresid**2) 
+        return _chisq
+
+    num_points = len(match.masked_nresid(params))
+
+    def objective(params):
+        _chisq = chisq(params)
+        _penalty = ((params['psf'].value - psf)/psf_err)**2.0
+        return _chisq + _penalty
+
+    # Fit a first time to get the chisq minimum
+    out = lmfit.minimize(objective, params, method='powell')
     out.params.pretty_print()
-    medresid = np.median(resid)
-    resid -= medresid
+
+    # Re-fit, but allow a prior on the psf parameter
+    rchisq_min = objective(out.params) / num_points
+    params = out.params
+    params['psf'].vary =True
+    def objective(params):
+        _chisq = chisq(params)
+        _penalty = rchisq_min * ((params['psf'].value - psf)/psf_err)**2.0
+        return _chisq + _penalty
+
+    out = lmfit.minimize(objective, out.params, method='powell')
+    out.params.pretty_print()
+    rchisq = chisq(out.params) / num_points
+    resid = match.resid(out.params)
+
     d = dict(
-        result=out, model=match.model(out.params), 
+      result=out, flux=match.spec.flux, 
         wav=match.spec.wav, resid=resid, 
-        objective=objective(out.params)
+        rchisq = rchisq, 
     )
 
     return d
