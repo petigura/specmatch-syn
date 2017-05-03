@@ -1,7 +1,5 @@
 """
-
 This module defines the Match class that is used in fitting routines.
-
 """
 
 import numpy as np
@@ -23,9 +21,11 @@ class Match(object):
 
             wavmask (boolean array): same length as spec.wav. If True
                 ignore in the likelihood calculation
+
             cont_method (str): Method for accounting for the mismatch in the 
                 continuum between observed and model spectra. One of:
                 `spline-forward-model` or `spline-double-div`
+            rot_method (str): How to apply the rotational broadening
         """
         spec, lib, wavmask = args
         
@@ -34,7 +34,9 @@ class Match(object):
         self.spec = spec
         self.lib = lib
         self.wavmask = wavmask
-
+        self._parse_kwargs(kwargs)
+        
+    def _parse_kwargs(self, kwargs):
         assert kwargs.has_key('cont_method'), "Must contain cont_method"
         self.cont_method = kwargs['cont_method']
 
@@ -156,14 +158,6 @@ class Match(object):
         _out = self.nresid(params, **kwargs)[~self.wavmask]
         return _out
 
-    def chi2med(self, params):
-        _resid = self.resid(params)
-        med = np.median(_resid)
-        _resid -= med
-        _chi2med = np.sum(_resid**2)
-        return _chi2med
-
-
 class MatchLincomb(Match):
     def __init__(self, *args, **kwargs):
         """
@@ -189,12 +183,9 @@ class MatchLincomb(Match):
         self.spec = spec
         self.lib = lib
         self.wavmask = wavmask
-        self.model_indecies= model_indecies
+        self.model_indecies = model_indecies
 
-        cont_method = 'spline-fm'
-        if kwargs.has_key('cont_method'):
-            cont_method = kwargs['cont_method']
-        self.cont_method = cont_method
+        self._parse_kwargs(kwargs)
 
     def model(self, params, wav=None):
         if wav is None:
@@ -204,10 +195,9 @@ class MatchLincomb(Match):
         vsini = params['vsini'].value
         psf = params['psf'].value
         _model = self.lib.synth_lincomb(
-            wav, self.model_indecies, mw, vsini, psf
+            wav, self.model_indecies, mw, vsini, psf, self.rot_method
         )
         return _model
-
 
 def spline_nodes(wav_min, wav_max, angstroms_per_node=20,):
     # calculate number of spline nodes
