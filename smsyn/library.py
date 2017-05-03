@@ -238,7 +238,7 @@ class Library(object):
             assert False,'invalid rot_method' 
 
         if psf is not None:
-            # Broaden with PSF (assume gaussian) (km/s)
+            # Broaden with PSF (assume gaussian) 
             if psf > 0: 
                 flux = nd.gaussian_filter(flux,psf)
 
@@ -279,14 +279,21 @@ class Library(object):
         )
         return flux
 
-    def synth_lincomb(self, wav, model_indecies, coeff, vsini, psf):
+    def synth_lincomb(self, wav, model_indecies, coeff, vsini, psf, rot_method):
         assert (coeff >= 0).all(), "coeff must be postive"
         coeff /= coeff.sum()
-        flux = np.dot(coeff, self.model_spectra[model_indecies])
+        model_spectra = []
+        for model_index in model_indecies:
+            model_spectrum = self.model_spectra[model_index]
+            teff = self.model_table.ix[model_index].teff
+            model_spectrum = self._broaden(
+                wav, model_spectrum, psf=psf, rot_method=rot_method, teff=teff,
+                vsini=vsini
+            )
+            model_spectra.append(model_spectrum)
+        model_spectra = np.vstack(model_spectra)
+        flux = np.dot(coeff,model_spectra)
         flux = np.interp(wav, self.wav, flux) # Resample at input wavelengths
-        flux = self._broaden(
-            wav, flux, psf=psf, rot_method='rotmacro', teff=5700, vsini=vsini
-        )
         return flux
     
 def read_hdf(filename, wavlim=None):
