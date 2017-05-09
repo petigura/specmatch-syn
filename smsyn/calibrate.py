@@ -108,13 +108,72 @@ class Calibrator(object):
             values_i = interp(points_i)
             
 
-        params_uncal['temp'] = values_i.reshape(-1)
-        if params_uncal['temp'].isnull().sum() > 0:
-            print params_uncal[params_uncal.temp.isnull()]
+        params_uncal['delta'] = values_i.reshape(-1)
+        if params_uncal['delta'].isnull().sum() > 0:
+            print params_uncal[params_uncal['delta'].isnull()]
         params_cal = np.array(params_uncal[self.param]) + values_i.reshape(-1)
-
-        
         return params_cal
+
+    def print_hyperplane(self, x, dx, fmt='.2f'):
+        """Print hyperplane parameters.
+
+        If the calibration is a function of N variables and there are
+        N + 1 node points defined, then the calibration is a plane
+        which can be defined in the following form:
+
+            delta y = c0 + c1 * (x1 - x1_0)/(dx1) + ...
+
+        Args:
+             x (dict): value at which plane is defined.
+             dx (slope): delta parameter used to define slope
+
+
+        Returns:
+             str: formatted string
+             
+
+        Example:
+             >>> x = dict(teff=5500, logg=3.5, fe=0.0)
+             >>> dx = dict(teff=100, logg=0.1, fe=0.1)
+             >>> print_hyperplane(x, dx)
+             $\Delta logg$ =
+
+        """
+        
+        # Dimensions
+        npoints, ndim = self.node_points.shape
+        assert npoints==ndim+1, "Must have ndim + 1 points"
+
+        # Convert to a length-1 data frame
+        x = pd.DataFrame([x])
+        dx = pd.DataFrame([dx])
+
+        # Value of plane at reference point
+        param_cal = self.transform(x)[0]
+        param_uncal = x[self.param].iloc[0] 
+        c0 = param_cal - param_uncal
+
+        print ""*80
+        print " {} Hyperplane Parameters ".format(self.param)
+        s = "{:%s}" % fmt
+        s = s.format(c0)
+        i = 0 
+        print "c%i" % i, s
+        for k in 'teff logg fe'.split():
+            i+=1
+            if list(x.columns).count(k)==1:
+                _x = x.copy()
+                _x[k] += dx[k]
+                param_cal = self.transform(_x)[0]
+                param_uncal = _x[self.param].iloc[0] 
+                
+                slope = param_cal - param_uncal - c0
+                s = "{:%s} * ({:s} - {:%s})/({:%s})" % (fmt, fmt, fmt) 
+                s = s.format(
+                    slope, k, x[k].iloc[0], 
+                    dx[k].iloc[0] 
+                )
+                print "c%i" % i, s
 
 def read_fits(fitsfn, param):
     """Restore calibrator object from fits file
