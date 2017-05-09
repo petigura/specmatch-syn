@@ -189,3 +189,47 @@ def read_fits(fitsfn, param):
     cal.node_points = smfits.read_dataframe(fitsfn, cal.extname['node_points'])
     cal.node_values = smfits.read_dataframe(fitsfn, cal.extname['node_values'])
     return cal
+
+
+
+def calibrate(df, calfn, mode='uncal'):
+    """
+    Perform the calibration
+
+    Args:
+        df : DataFrame with teff, logg, fe
+        calfn : Fits file that calibration parameters are saved to
+        mode: `uncal` - put the uncalibrated parameters into _uncal suffix
+        mode: `fivepane` - put the calibrated parameters to _sm
+    """
+    
+    def namemap(suffix0,suffix1):
+        _namemap = {}
+        for k in 'teff logg fe'.split():
+            _namemap[k+suffix0] = k+suffix1
+        return _namemap
+
+    if mode=='fivepane':
+        # Replace _sm suffix with nothing
+        df = df.rename(columns=namemap('_sm',''))
+        
+        # perform the calibrations
+        for k in 'teff logg fe'.split():
+            cal = read_fits(calfn,k)
+            df[k+'_sm'] = cal.transform(df)
+
+    elif mode=='uncal':
+        for k in 'teff logg fe'.split():
+            cal = read_fits(calfn,k)
+            df[k+'_cal'] = cal.transform(df)
+
+        # Move the teff -> teff_uncal
+        df = df.rename(columns=namemap('','_uncal'))
+
+        # Move the teff_cal -> teff
+        df = df.rename(columns=namemap('_cal',''))
+
+    else:
+        assert False
+
+    return df
