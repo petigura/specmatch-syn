@@ -221,6 +221,8 @@ def polish(match, params0, psf, psf_err, angstrom_per_node=20):
             - resid
             - objective
     """
+
+
     params = lmfit.Parameters()
     for name in params0.keys():
         params.add(name)
@@ -257,35 +259,49 @@ def polish(match, params0, psf, psf_err, angstrom_per_node=20):
         _chisq = np.sum(nresid**2) 
         return _chisq
 
-    num_points = len(match.masked_nresid(params))
+    def rchisq(params):
+        return chisq(params) / num_points
 
     def objective(params):
         _chisq = chisq(params)
         _penalty = ((params['psf'].value - psf)/psf_err)**2.0
         return _chisq + _penalty
 
+    def print_params(lmout):
+        lmout.params.pretty_print(columns=['value', 'vary'])
+        print "rchisq = {}".format(rchisq(lmout.params))
+
+    num_points = len(match.masked_nresid(params))
+    params_out = {}
+    params_out['rchisq0'] = rchisq(params)
+
     # Fit a first time to get the chisq minimum
-    out = lmfit.minimize(objective, params, method='powell')
-    out.params.pretty_print()
+    lmout = lmfit.minimize(objective, params, method='powell')
+    print_params(lmout)
 
     # Re-fit, but allow a prior on the psf parameter
-    rchisq_min = objective(out.params) / num_points
-    params = out.params
+    rchisq_min = objective(lmout.params) / num_points
+    params = lmout.params
     params['psf'].vary =True
     def objective(params):
         _chisq = chisq(params)
         _penalty = rchisq_min * ((params['psf'].value - psf)/psf_err)**2.0
         return _chisq + _penalty
 
-    out = lmfit.minimize(objective, out.params, method='powell')
-    out.params.pretty_print()
-    rchisq = chisq(out.params) / num_points
-    resid = match.resid(out.params)
+    lmout = lmfit.minimize(objective, lmout.params, method='powell')
+    print_params(lmout)
 
+    for k in 'teff logg fe vsini psf'.split():
+        params_out[k] = lmout.params[k].value
+    params_out['rchisq1'] = rchisq(lmout.params) 
+
+        
+    resid = match.resid(lmout.params)
     d = dict(
-      result=out, flux=match.spec.flux, 
-        wav=match.spec.wav, resid=resid, 
-        rchisq = rchisq, 
+        params_out=params_out, 
+        flux=match.spec.flux, 
+        wav=match.spec.wav, 
+        resid=resid, 
+        wavmask=match.wavmask,
     )
-
     return d

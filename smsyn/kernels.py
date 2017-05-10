@@ -62,8 +62,9 @@ def rotmacro(n, dv, xi, vsini, **kwargs):
     kernel_ft = np.hstack([ kernel_ft, kernel_ft[1:][::-1] ])
     kernel = fft.ifft(kernel_ft)
     kernel = fft.fftshift(kernel)
+    kernel = kernel.real # Require the real part
     kernel = kernel/np.sum(kernel)
-    return varr,kernel
+    return varr, kernel
 
 def rot(n, dv, vsini, u1=0.6):
     """Rotational Kernel

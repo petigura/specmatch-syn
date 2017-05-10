@@ -4,5 +4,5 @@ start, stop
 5200, 5280 # order 3
 5360, 5440 # order 5
 5530, 5610 # order 7
-6000, 6190 # order 13
+6100, 6190 # order 13
 6210, 6260 # order 14

@@ -136,7 +136,6 @@ def lincomb(pipe):
         )
         pipe.lincomb_output[segment[0]] = output
 
-
 def polish(pipe):
     """
     Perform the polishing step using the lincomb step as a starting point
@@ -157,6 +156,8 @@ def polish(pipe):
         wavmask = smsyn.specmatch.wav_exclude_to_wavmask(
             spec.wav, pipe.wav_exclude
         )    
+        wavmask = wavmask | mask_spectrum(spec.wav, spec.flux)
+
         match = smsyn.match.Match(
             spec, lib, wavmask, cont_method='spline-fm',rot_method='rotmacro'
         )
@@ -176,6 +177,27 @@ def polish(pipe):
 
         pipe.polish_output[segment[0]] = output
 
+def mask_spectrum(wav, flux, flux_max=1.2, pad=20):
+    """
+    Mask spectrum
+    
+    Args:
+        wav (array): wavelenth array
+        flux (array): spectrum array
+        flux_max (float): value to at which to mask
+        pad (int): number of elements to throw out around bad points
+
+    Returns:
+        array: boolean array with points that are masked out
+    
+    
+    """
+    mask = flux > flux_max
+
+    # Grow mask by 10 pixels in both dimensions
+    mask = np.convolve(mask,np.ones(pad),mode='same') > 0
+    return mask
+
 def read_pickle(pklfn,verbose=False):
     """
     Read the parameters from the pickle save function
@@ -188,7 +210,6 @@ def read_pickle(pklfn,verbose=False):
     out = []
     for segment in pipe.segments:
         output = pipe.polish_output[segment[0]]
-        keys = 'teff logg fe vsini psf'.split()
         s = ""
         d = {}
         d['name'] = name
@@ -196,12 +217,7 @@ def read_pickle(pklfn,verbose=False):
         d['segment0'] = segment[0]
         d['segment1'] = segment[1]
         d['method'] = 'polish'
-        for k in keys:
-            s += "{:.2f} ".format(output['result'].params[k].value)
-            d[k] = output['result'].params[k].value
-
-        if verbose:
-            print s
+        d = dict(d, **output['params_out'])
         out.append(d)
 
     for segment in pipe.segments:
@@ -218,3 +234,6 @@ def read_pickle(pklfn,verbose=False):
     out = pd.DataFrame(out)
 
     return pipe, out 
+
+
+
