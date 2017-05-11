@@ -1,3 +1,7 @@
-scipy
 numpy
+scipy
+matplotlib
+h5py
+pandas
+lmfit
 astropy
