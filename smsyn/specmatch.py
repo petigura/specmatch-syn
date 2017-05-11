@@ -277,7 +277,7 @@ def polish(match, params0, psf, psf_err, angstrom_per_node=20):
 
     # Fit a first time to get the chisq minimum
     lmout = lmfit.minimize(objective, params, method='powell')
-    lmfit.fit_report(lmout)
+    print lmfit.fit_report(lmout)
     print_params(lmout)
 
     # Re-fit, but allow a prior on the psf parameter
@@ -290,7 +290,7 @@ def polish(match, params0, psf, psf_err, angstrom_per_node=20):
         return _chisq + _penalty
 
     lmout = lmfit.minimize(objective, lmout.params, method='powell')
-    lmfit.fit_report(lmout)
+    print lmfit.fit_report(lmout)
     print_params(lmout)
 
     for k in 'teff logg fe vsini psf'.split():
