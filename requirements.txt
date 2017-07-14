@@ -3,5 +3,5 @@ scipy>=0.18.0
 matplotlib>=1.5.3
 h5py>=2.6.0
 pandas>=0.19.1
-lmfit>=0.9.5
+lmfit==0.9.6
 astropy>=1.2.1
