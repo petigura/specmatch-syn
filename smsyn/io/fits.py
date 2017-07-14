@@ -4,13 +4,12 @@ from cStringIO import StringIO
 import os
 import astropy.io.fits 
 import smsyn.io.fits
-
+from astropy.table import Table
 import os
 def write_hdu(fitsfn, extname, hdu):
     """
 
     """
-    import pdb;pdb.set_trace()
     if os.path.exists(fitsfn) is False:
         primary_hdu = astropy.io.fits.PrimaryHDU()
         astropy.io.fits.append(
@@ -38,7 +37,12 @@ def little_endian(inp):
     return out
 
 def write_dataframe(fitsfn, extname, data):
-    hdu = astropy.io.fits.BinTableHDU(data=data.to_records(index=False))
+    # Weird object converion needed to prevent type errors. Don't
+    # really understand what was going on here, perhaps some issue
+    # with unicode.
+    data = Table.from_pandas(data)
+    data = data.as_array()
+    hdu = astropy.io.fits.BinTableHDU(data=data)
     write_hdu(fitsfn, extname, hdu,)
     return None
 
