@@ -10,6 +10,7 @@ def write_hdu(fitsfn, extname, hdu):
     """
 
     """
+    import pdb;pdb.set_trace()
     if os.path.exists(fitsfn) is False:
         primary_hdu = astropy.io.fits.PrimaryHDU()
         astropy.io.fits.append(

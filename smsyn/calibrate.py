@@ -22,7 +22,7 @@ class Calibrator(object):
         extname['node_values'] = self.param+'_node_values'
         self.extname = extname
 
-    def fit(self, catalog, node_points, suffixes=['_sm','_lib']):
+    def fit(self, catalog, node_points, suffixes=['_new','_lib']):
         """
         Peform a least squares minimization of linear interpolation paramete
 
@@ -32,8 +32,7 @@ class Calibrator(object):
                 some other method.
             node_points (pandas.DataFrame): Table of points at which to fit for
                 calibration parameters.
-            suffixes (list): Suffixes for the uncalibrated, and calibrate 
-                parameters
+            suffixes (list): Suffixes for fo the `new` and `library parameters 
         """
         self.param_uncal = self.param+suffixes[0]
         self.param_cal = self.param+suffixes[1]
@@ -65,7 +64,11 @@ class Calibrator(object):
 
             return _resid
         out = lmfit.minimize(resid, fit_params, method='fmin')
-        lmfit.report_fit(out.params)
+        #lmfit.report_fit(out.params)
+
+        temp = self.node_points.copy()
+        temp['d'+self.param] = self.node_values
+        print temp
 
     def to_fits(self, fitsfn):
         """Save to fits file
@@ -189,7 +192,6 @@ def read_fits(fitsfn, param):
     cal.node_points = smfits.read_dataframe(fitsfn, cal.extname['node_points'])
     cal.node_values = smfits.read_dataframe(fitsfn, cal.extname['node_values'])
     return cal
-
 
 
 def calibrate(df, calfn, mode='uncal'):

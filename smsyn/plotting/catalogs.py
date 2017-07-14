@@ -142,10 +142,6 @@ def plotdiffs(df,xk,yk,suffixes=['_lib','_sm']):
     plot(dx.T,dy.T,'r')
     plot(dx.iloc[0],dy.iloc[0],'r',label='SM-derived value')
 
-#    xlabel("%s (%s)" % (k2tex[xk],units[xk]))
-#    ylabel("%s (%s)" % (k2tex[yk],units[yk]))
-
-
 
 def merge_sm_lib(dfsm,dflib,suffixes=['_sm','_lib']):
     """
