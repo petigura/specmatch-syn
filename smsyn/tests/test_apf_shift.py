@@ -15,9 +15,9 @@ from smsyn import DATA_DIR
 
 if __name__=="__main__":
     # file input setup
-    name = 'MOON'
-    obs = 'rabh.225'
-    inpfile = os.path.join(DATA_DIR,'{}_{}.fits'.format(name,obs))
+    name = '10700'
+    obs = 'raad.132'
+    inpfile = os.path.join(DATA_DIR,'{}.fits'.format(obs))
     outfile = '{}_{}.sm.fits'.format(name,obs)
 
     # parse path to library file from command line

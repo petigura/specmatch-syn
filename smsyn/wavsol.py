@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import ma
-from scipy.stats import nanstd, nanmean, nanmedian
+from numpy import nanstd, nanmean, nanmedian
 from scipy.interpolate import InterpolatedUnivariateSpline
 
 SPEED_OF_LIGHT = 2.99792e5 # Speed of light [km/s] 
@@ -50,7 +50,7 @@ def velocityshift(wav, flux, ref_wav, ref_flux, plot=False):
         plt.plot(wav,ref_flux)
         plt.plot(wav,flux)
         plt.sca(axL[1])
-        vrange = (-100,100)
+        vrange = (-500,500)
         b = (dvel > vrange[0]) & (dvel < vrange[1])
         plt.plot(dvel[b],corr[b])
         plt.plot([vmax],[corrmax],'o',label='Cross-correlation Peak')

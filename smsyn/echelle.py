@@ -191,6 +191,7 @@ def shift_orders(ech, ref_wav, dvel):
         # Shift uflux values.
         spline = InterpolatedUnivariateSpline(wav_refscale, ech.uflux[i_order])
         ech_shift.uflux[i_order,b] = spline(ref_wav[b])
+        
     return ech_shift
 
 def flatten(ech, method='average'):
@@ -199,17 +200,10 @@ def flatten(ech, method='average'):
     wav = ech.wav[0]
     assert np.allclose(ech.wav - wav, 0), "ech.wav rows must be identical"
 
-    ech.flux = ma.masked_invalid(ech.flux)
-    ech.uflux = ma.masked_invalid(ech.uflux)
-    
+    # Weighted mean and uncertanty on weighted mean
     if method=='average':
         ivar = ech.uflux**-2
-        # Weighted mean and uncertanty on weighted mean
-        flux = ma.sum( ech.flux * ivar, axis=0 ) / ma.sum(ivar, axis=0)
-        uflux = ma.sqrt( 1 / ma.sum(ivar, axis=0) )
+        flux = np.nansum( ech.flux * ivar, axis=0 ) / np.nansum(ivar, axis=0)
+        uflux = ma.sqrt( 1 / np.nansum(ivar, axis=0) )
 
-    flux.fill_value = np.nan 
-    uflux.fill_value = np.nan 
-    flux = flux.filled()
-    uflux = uflux.filled()
     return flux, uflux
