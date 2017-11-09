@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import numpy as np
-from scipy.stats import nanmean, nanmedian
+from numpy import nanmean, nanmedian
 import os
 import itertools
 from astropy.io import fits

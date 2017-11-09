@@ -29,7 +29,10 @@ def plot_fit(pipe, segment0, method):
 
     # Identifies the contiguous masked regions
     sL = ma.notmasked_contiguous(ma.masked_array(wavmask,~wavmask))
-    wav_exclude = [ (wav[slice.start],wav[slice.stop-1]) for slice in sL]
+    if sL is not None:
+        wav_exclude = [ (wav[slice.start],wav[slice.stop-1]) for slice in sL]
+    else:
+        wav_exclude = []
 
     for i in range(nrows):
         sca(axL[i])
