@@ -7,6 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.widgets as widgets
 from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+from decimal import Decimal
 
 
 def one2one(*args,**kwargs):
@@ -194,3 +195,28 @@ def flip(axis):
         plt.ylim(plt.ylim()[::-1])
 
 
+def round_sig(x, sig=2):
+    if x == 0: return 0.0
+    return round(x, sig-int(np.floor(np.log10(abs(x))))-1)
+
+
+def sigfig(med, errlow, errhigh=None):
+    if errhigh == None: errhigh = errlow
+
+    ndec = Decimal(str(errlow)).as_tuple().exponent
+    if abs(Decimal(str(errhigh)).as_tuple().exponent) > abs(ndec): ndec = Decimal(str(errhigh)).as_tuple().exponent
+    if ndec < -1:
+        tmpmed = round(med, abs(ndec))
+        p = 0
+        while tmpmed == 0:
+            tmpmed = round(med, abs(ndec) + p)
+            p += 1
+        med = tmpmed
+    elif (ndec == -1 and str(errhigh)[-1] == '0') and (ndec == -1 and str(errlow)[-1] == '0') or ndec == 0:
+        errlow = int(round_sig(errlow))
+        errhigh = int(round(errhigh))
+        med = int(round(med))
+    else:
+        med = round(med, abs(ndec))
+
+    return med, errlow, errhigh
