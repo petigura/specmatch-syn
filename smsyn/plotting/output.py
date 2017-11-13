@@ -185,7 +185,7 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     pl.yticks(locs, [''] * len(locs))
     pl.xticks([-50, 0, 50], fontsize=16)
     pl.xlim(-100, 100)
-    crop = np.where((dv > -100) & (dv < 200))[0]
+    crop = np.where((dv > -100) & (dv < 100))[0]
     pl.ylim(min(acfmspec[crop]), max(acfmspec[crop]) + 0.2 * max(acfmspec))
     # pl.annotate('ACF', xy=(0.15, 0.85), xycoords='axes fraction')
     ax = pl.gca()
