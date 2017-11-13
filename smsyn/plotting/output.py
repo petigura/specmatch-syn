@@ -7,6 +7,7 @@ import os
 from matplotlib import pylab as plt
 import pylab as pl
 import numpy as np
+import pandas as pd
 
 import isochrones
 import isochrones.mist
@@ -64,7 +65,6 @@ def plotHR(libfile, teff, logg):
         logg (float): logg of target
 
     """
-    import pandas as pd
     lib = pd.read_csv(libfile)
 
     pl.plot(lib.TEFF, lib.LOGG, 'k.', color='0.6', label='SM Library')
@@ -73,7 +73,7 @@ def plotHR(libfile, teff, logg):
 
     ax = pl.gca()
 
-    pl.ylim(3, 5)
+    pl.ylim(2.5, 5)
     pl.xlim(*pl.xlim()[::-1])
     pl.ylim(*pl.ylim()[::-1])
     pl.xticks(pl.xticks()[0][1::2], fontsize=18)
@@ -255,6 +255,8 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
                             xycoords="figure fraction",
                             fontsize=afs)
             else:
+                err = smsyn.plotting.utils.round_sig(err, 2)
+                val, err, err = smsyn.plotting.utils.sigfig(val, err)
                 pl.annotate("{} = {} $\\pm$ {} {}".format(n, val, err, u),
                             xy=(0.76, 0.575 - 0.04 * i),
                             xycoords="figure fraction",
