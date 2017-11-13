@@ -9,6 +9,7 @@ import pylab as pl
 import numpy as np
 
 import isochrones
+import isochrones.mist
 
 import smsyn.library
 import smsyn.wavsol
@@ -120,11 +121,11 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     # segs = np.array([[5250, 5280], [5545, 5575], [6120, 6150]])    # include Mg region
 
 
-    teff = bestpars['teff'].values[0]
-    logg = bestpars['logg'].values[0]
-    feh = bestpars['fe'].values[0]
-    vsini = bestpars['vsini'].values[0]
-    psf = bestpars['psf'].values[0]
+    teff = bestpars['teff']
+    logg = bestpars['logg']
+    feh = bestpars['fe']
+    vsini = bestpars['vsini']
+    psf = bestpars['psf']
 
     lib = smsyn.library.read_hdf(pipe.libfile, wavlim=(segs[0][0], segs[-1][-1]))
     spec = smsyn.io.spectrum.read_fits(pipe.smfile)
@@ -204,30 +205,45 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
 
     ax = pl.gca()
 
-    mstar, rstar = bestpars['iso_mass'], bestpars['iso_radius']
+    try:
+        mstar, rstar = bestpars['iso_mass'], bestpars['iso_radius']
+        hasiso = True
+    except KeyError:
+        hasiso = False
 
     pl.subplot2grid((3, 4), (0, 3))
+    afs = 22
     # plotiso()
     plotHR(os.path.join(smsyn.CAT_DIR, 'library_v12.csv'), teff, logg)
     ax = pl.gca()
     ax.set_xticks([6500, 5500, 4500, 3500])
 
-    labels = ['teff', 'logg', 'fe', 'vsini', 'iso_mass', 'iso_radius']
-    names = ['T$_{\\rm eff}$', '$\\log{g}$', 'Fe/H', '$v\\sin{i}$', "M$_{\\star}$", "R$_{\\star}$"]
-    units = ['K', '', '', 'km s$^{-1}$', 'M$_{\\odot}$', 'R$_{\\odot}$']
-    afs = 22
+    labels = ['teff', 'logg', 'fe', 'vsini']
+    names = ['T$_{\\rm eff}$', '$\\log{g}$', 'Fe/H', '$v\\sin{i}$']
+    units = ['K', '', '', 'km s$^{-1}$']
+
+    if hasiso:
+        labels.append('iso_mass')
+        labels.append('iso_radius')
+
+        names.append("M$_{\\star}$")
+        names.append("R$_{\\star}$")
+
+        units.append('M$_{\\odot}$')
+        units.append('R$_{\\odot}$')
 
     i = 0
     for k, n, u in zip(labels, names, units):
 
-        val = bestpars[k].values[0]
-        try:
-            err = bestpars[k+'_err'].values[0]
-        except KeyError:
-            err = bestpars[k + '_err1'].values[0]
+        val = bestpars[k]
+        if k+'_err' in bestpars.keys():
+            err = bestpars[k+'_err']
+        elif k + '_err1' in bestpars.keys():
+            err = bestpars[k + '_err1']
+        elif k == 'vsini':
+            err = val * 0.25
 
         if k == 'vsini':
-            err = val * 0.25
             if val < 2:
                 pl.annotate("{} $\leq$ 2 {}".format(n, u),
                             xy=(0.76, 0.575 - 0.04 * i),
