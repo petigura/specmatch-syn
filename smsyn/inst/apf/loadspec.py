@@ -43,11 +43,13 @@ def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,orde
             errspec /= spec
 
     if flatten and not Bflat and not nflat:
-        if verbose: print "Polynomial continuum normalization. order = %d" % order
+        if verbose:
+            print "Polynomial continuum normalization. order = %d" % order
         for i in range(spec.shape[0]):
             spec[i] = flatspec(spec[i],order=order)
     elif Bflat:
-        if verbose: print "B star continuum normalization"
+        if verbose:
+            print "B star continuum normalization"
 
         spec = spec[:,:-1]
         errspec = errspec[:,:-1]
@@ -63,11 +65,15 @@ def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,orde
         bspec = read_fits(fitsfile, flatten=False, Bflat=False, specorders=specorders)
         
         for i in range(spec.shape[0]):
-            if geterr: errspec[i] = np.sqrt(spec[i]) / spec[i]
+            if geterr:
+                errspec[i] = np.sqrt(spec[i]) / spec[i]
             spec[i] = Bflatten(spec[i], bspec[i])
-            
-    if geterr: return spec, errspec
-    else: return spec
+
+    if geterr:
+        errspec[np.isnan(errspec)] = 99.0
+        return spec, errspec
+    else:
+        return spec
 
 def flatspec(rawspec, order=4):
 

@@ -6,7 +6,9 @@ Functions that supplement matplotlib.
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.widgets as widgets
-from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+# from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+from matplotlib.offsetbox import AnchoredText
+
 from decimal import Decimal
 
 

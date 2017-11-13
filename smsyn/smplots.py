@@ -7,7 +7,8 @@ import h5py
 from matplotlib.gridspec import GridSpec
 from matplotlib import pylab as plt
 from matplotlib.transforms import blended_transform_factory
-from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+# from mpl_toolkits.axes_grid.anchored_artists import AnchoredText
+from matplotlib.offsetbox import AnchoredText
 
 from smsyn import results
 from smsyn import smio
