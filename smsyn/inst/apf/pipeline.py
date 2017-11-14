@@ -11,6 +11,7 @@ import smsyn.library
 import smsyn.specmatch
 from smsyn.inst.hires import shift
 import smsyn.inst.hires.pipeline as hires_pipeline
+from smsyn.inst.hires.pipeline import *
 
 PACKAGE_DIR = os.path.dirname(smsyn.__file__)
 
@@ -50,43 +51,43 @@ class APFPipeline(HiresPipeline):
         self.wav_exclude = wav_exclude
         self.segments = segments
 
-    def polish(pipe):
-        """
-        Perform the polishing step using the lincomb step as a starting point
-        """
+def polish(pipe):
+    """
+    Perform the polishing step using the lincomb step as a starting point
+    """
 
-        pipe.polish_output = {}
-        for segment in pipe.segments:
-            extname = 'lincomb_%i' % segment[0]
-            params0 = smsyn.io.fits.read_dataframe(pipe.smfile, extname)
-            assert len(params0)==1,"Must table of length 1"
-            params0 = params0.iloc[0]
-            lib = smsyn.library.read_hdf(pipe.libfile,wavlim=segment)
-            spec = smsyn.io.spectrum.read_fits(pipe.smfile) # Save to output
-            spec = spec[(segment[0]<spec['wav']) & (spec['wav']<segment[1])]
+    pipe.polish_output = {}
+    for segment in pipe.segments:
+        extname = 'lincomb_%i' % segment[0]
+        params0 = smsyn.io.fits.read_dataframe(pipe.smfile, extname)
+        assert len(params0)==1,"Must table of length 1"
+        params0 = params0.iloc[0]
+        lib = smsyn.library.read_hdf(pipe.libfile,wavlim=segment)
+        spec = smsyn.io.spectrum.read_fits(pipe.smfile) # Save to output
+        spec = spec[(segment[0]<spec['wav']) & (spec['wav']<segment[1])]
 
-            print "Polishing fit to {}".format(spec.__repr__())
+        print "Polishing fit to {}".format(spec.__repr__())
 
-            wavmask = smsyn.specmatch.wav_exclude_to_wavmask(
-                spec.wav, pipe.wav_exclude
-            )
-            wavmask = wavmask | mask_spectrum(spec.wav, spec.flux)
+        wavmask = smsyn.specmatch.wav_exclude_to_wavmask(
+            spec.wav, pipe.wav_exclude
+        )
+        wavmask = wavmask | mask_spectrum(spec.wav, spec.flux)
 
-            match = smsyn.match.Match(
-                spec, lib, wavmask, cont_method='spline-fm',rot_method='rotmacro'
-            )
+        match = smsyn.match.Match(
+            spec, lib, wavmask, cont_method='spline-fm',rot_method='rotmacro'
+        )
 
-            # Attach parameters from previous step. Starting at a low value of
-            # vsini seems to help convergence
-            lm_params0 = lmfit.Parameters()
-            lm_params0.add_many(
-                ('teff', params0.teff),
-                ('logg', params0.logg),
-                ('fe',  params0.fe),
-                ('vsini',0.1),
-            )
-            output = smsyn.specmatch.polish(
-                match, lm_params0, 1.2, 0.8, angstrom_per_node=10,
-            )
+        # Attach parameters from previous step. Starting at a low value of
+        # vsini seems to help convergence
+        lm_params0 = lmfit.Parameters()
+        lm_params0.add_many(
+            ('teff', params0.teff),
+            ('logg', params0.logg),
+            ('fe',  params0.fe),
+            ('vsini', 0.1),
+        )
+        output = smsyn.specmatch.polish(
+            match, lm_params0, 1.2, 0.8, angstrom_per_node=10,
+        )
 
-            pipe.polish_output[segment[0]] = output
+        pipe.polish_output[segment[0]] = output

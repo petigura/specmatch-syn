@@ -130,6 +130,29 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     lib = smsyn.library.read_hdf(pipe.libfile, wavlim=(segs[0][0], segs[-1][-1]))
     spec = smsyn.io.spectrum.read_fits(pipe.smfile)
 
+
+    fitwav = []
+    fitflux = []
+    fitres = []
+    fitmod = []
+    for s in pipe.segments:
+        segment0 = s[0]
+        output = pipe.polish_output[segment0]
+        wav = output['wav']
+        flux = output['flux']
+        resid = output['resid']
+        model = flux - resid
+
+        fitwav.append(wav)
+        fitflux.append(flux)
+        fitres.append(resid)
+        fitmod.append(model)
+
+    wav = np.hstack(fitwav).flatten()
+    flux = np.hstack(fitflux).flatten()
+    resid = np.hstack(fitres).flatten()
+    model = np.hstack(fitmod).flatten()
+
     fullwav = spec.wav
     # fullmod = lib.synth(lib.wav, teff, logg, feh, vsini, psf, rot_method='rotmacro')
     fullmod = lib.synth(spec.wav, teff, logg, feh, vsini, psf, rot_method='rotmacro')
@@ -148,13 +171,24 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     for i, seg in enumerate(segs):
         pl.subplot2grid((3, 4), (i, 0), colspan=3)
 
-        crop = np.where((fullwav >= seg[0]) & (fullwav <= seg[1]))[0]
+        crop = np.where((wav >= seg[0]) & (wav <= seg[1]))[0]
+        pltflux = flux[crop]
+        if len(crop) == 0:
+            # print "Unfit data for seg {}".format(seg)
+            crop = np.where((fullwav >= seg[0]) & (fullwav <= seg[1]))[0]
+            pltwav = fullwav[crop]
+            pltflux = fullspec[crop]
+            pltmod = fullmod[crop]
+            pltflux *= (np.mean(pltmod)/np.mean(pltflux))
+        else:
+            pltwav = wav[crop]
+            pltmod = model[crop]
 
-        pl.plot(fullwav[crop], fullspec[crop], color='0.2', linewidth=3)
-        pl.plot(fullwav[crop], fullmod[crop], 'b-', linewidth=2)
+        pl.plot(pltwav, pltflux, color='0.2', linewidth=3)
+        pl.plot(pltwav, pltmod, 'b-', linewidth=2)
 
         pl.axhline(0, color='r', linewidth=2)
-        pl.plot(fullwav[crop], fullspec[crop] - fullmod[crop], 'k-', color='0.2', linewidth=3)
+        pl.plot(pltwav, pltflux - pltmod, 'k-', color='0.2', linewidth=3)
 
         for w0,w1 in wavmask:
             if w0 > seg[0] or w1 < seg[1]:
@@ -162,7 +196,7 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
 
         pl.xticks(fontsize=16)
         pl.yticks(pl.yticks()[0][1:], fontsize=16)
-        pl.ylim(-0.2, 1.1)
+        pl.ylim(-0.2, 1.15)
         pl.xlim(seg[0], seg[1])
 
         ax = pl.gca()
@@ -172,10 +206,10 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
 
 
     # ACF plot
-    fullspec[~np.isfinite(fullspec)] = 1.0
-    lag, acftspec = ACF(fullspec)
-    lag, acfmspec = ACF(fullmod)
-    dv = loglambda_wls_to_dv(fullwav, nocheck=True)
+    flux[~np.isfinite(flux)] = 1.0
+    lag, acftspec = ACF(flux)
+    lag, acfmspec = ACF(model)
+    dv = loglambda_wls_to_dv(wav, nocheck=True)
     dv = lag * dv
 
     pl.subplot2grid((3, 4), (2, 3))
@@ -192,8 +226,10 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     ax.tick_params(pad=5)
 
     # CCF plot
-    lag, ccftspec = CCF(fullspec, fullmod)
-    dv = loglambda_wls_to_dv(fullwav, nocheck=True)
+    flux -= np.mean(flux)
+    model -= np.mean(model)
+    lag, ccftspec = CCF(flux, model)
+    dv = loglambda_wls_to_dv(wav, nocheck=True)
     dv = lag * dv
 
     pl.plot(dv, ccftspec, color='0.2', linewidth=3, linestyle='dotted', label='CCF of model w/\nspectrum')
