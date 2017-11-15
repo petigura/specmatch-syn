@@ -104,7 +104,7 @@ def loglambda_wls_to_dv(w, nocheck=True):
     scale. Then, returns dv
     """
     dv = (w[1:] - w[:-1])/(w[1:])*c
-    mdv = np.mean(dv)
+    mdv = np.median(dv)
     if not nocheck: assert dv.ptp() / mdv < 1e-6,"wavelengths must be log-lambda"
     dv = mdv
     return dv
