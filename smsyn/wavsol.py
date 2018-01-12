@@ -99,7 +99,7 @@ def quadratic_max(x, y, r=3):
     Fit a parabola near a maximum, and figure out where the derivative is 0.
     """
     idmax = np.argmax(y)
-    idpeak = np.arange(idmax-r, idmax+r+1)
+    idpeak = np.arange(np.clip(idmax-r, 0, len(x)), np.clip(idmax+r+1, 0, len(x)))
     a = np.polyfit(x[idpeak], y[idpeak], 2)
     xmax = -1.0 * a[1] / (2.0 * a[0]) # Where the derivative is 0
     ymax = np.polyval(a,xmax)
