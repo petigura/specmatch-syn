@@ -91,3 +91,47 @@ def polish(pipe):
         )
 
         pipe.polish_output[segment[0]] = output
+
+
+def read_pickle(pklfn,verbose=False):
+    """
+    Read the parameters from the pickle save function
+    """
+
+    with open(pklfn,'r') as f:
+        pipe = pickle.load(f)
+
+    fsplit = pklfn.split('/')[-1][:-7].split('_')
+    if len(fsplit) == 2:
+        name, obs = fsplit
+    else:
+        name = fsplit[:-1]
+        obs = fsplit[-1]
+
+    out = []
+    for segment in pipe.segments:
+        output = pipe.polish_output[segment[0]]
+        s = ""
+        d = {}
+        d['name'] = name
+        d['obs'] = obs
+        d['segment0'] = segment[0]
+        d['segment1'] = segment[1]
+        d['method'] = 'polish'
+        d = dict(d, **output['params_out'])
+        out.append(d)
+
+    for segment in pipe.segments:
+        extname = 'lincomb_%i' % segment[0]
+        d = smsyn.io.fits.read_dataframe(pklfn.replace('pkl','fits'),extname)
+        d = dict(d.iloc[0])
+        d['name'] = name
+        d['obs'] = obs
+        d['segment0'] = segment[0]
+        d['segment1'] = segment[1]
+        d['method'] = 'lincomb'
+        out += [d]
+
+    out = pd.DataFrame(out)
+
+    return pipe, out
