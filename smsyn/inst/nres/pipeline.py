@@ -105,7 +105,7 @@ def read_pickle(pklfn,verbose=False):
     if len(fsplit) == 2:
         name, obs = fsplit
     else:
-        name = fsplit[:-1]
+        name = '_'.join(fsplit[:-1])
         obs = fsplit[-1]
 
     out = []
