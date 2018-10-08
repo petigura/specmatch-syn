@@ -1,3 +1,5 @@
+import numpy as np
+
 import smsyn.echelle
 
 NSEG = 6
@@ -5,7 +7,7 @@ PIXVELSHIFT_METHOD = 'spline'
 NPIX_CLIP = 20 # Number of pixels to clip off at the ends of orders.
 
 
-def shift(wav, flux, uflux, ref_wav, ref_flux):
+def shift(wav, flux, uflux, ref_wav, ref_flux, return_velocities=False):
     """Shift echelle spectrum to a reference spectrum
 
     Given an extracted echelle spectrum having `nord` orders and
@@ -51,4 +53,7 @@ def shift(wav, flux, uflux, ref_wav, ref_flux):
     ech_shift = smsyn.echelle.shift_orders(ech, ref_wav, dvel)
     flux_shift, uflux_shift = smsyn.echelle.flatten(ech_shift)
 
-    return flux_shift, uflux_shift
+    if return_velocities:
+        return flux_shift, uflux_shift, dvel
+    else:
+        return flux_shift, uflux_shift
