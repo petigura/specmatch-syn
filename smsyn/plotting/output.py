@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 """
 Plots to summarize results
 """
@@ -130,6 +131,11 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     lib = smsyn.library.read_hdf(pipe.libfile, wavlim=(segs[0][0], segs[-1][-1]))
     spec = smsyn.io.spectrum.read_fits(pipe.smfile)
 
+    try:
+        absrv = spec.header['ABSRV']
+        absrv_err = spec.header['ABSRV_ERR']
+    except KeyError:
+        absrv = absrv_err = 0.0
 
     fitwav = []
     fitflux = []
@@ -210,15 +216,15 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     lag, acftspec = ACF(flux)
     lag, acfmspec = ACF(model)
     dv = loglambda_wls_to_dv(wav, nocheck=True)
-    dv = lag * dv
+    dv = lag * dv + absrv
 
     pl.subplot2grid((3, 4), (2, 3))
     pl.plot(dv, acftspec, 'k.', color='0.2', linewidth=3, label='ACF of spectrum')
     pl.plot(dv, acfmspec, color='b', linewidth=2, label='ACF of model')
     locs, labels = pl.yticks()
     pl.yticks(locs, [''] * len(locs))
-    pl.xticks([-50, 0, 50], fontsize=16)
-    pl.xlim(-100, 100)
+    pl.xticks([-100, -50, 0, 50, 100], fontsize=16)
+    pl.xlim(-100+absrv, 100+absrv)
     crop = np.where((dv > -100) & (dv < 100))[0]
     pl.ylim(min(acfmspec[crop]), max(acfmspec[crop]) + 0.2 * max(acfmspec))
     # pl.annotate('ACF', xy=(0.15, 0.85), xycoords='axes fraction')
@@ -230,14 +236,18 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
     model -= np.mean(model)
     lag, ccftspec = CCF(flux, model)
     dv = loglambda_wls_to_dv(wav, nocheck=True)
-    dv = lag * dv
+    dv = lag * dv + absrv
 
     pl.plot(dv, ccftspec, color='0.2', linewidth=3, linestyle='dotted', label='CCF of model w/\nspectrum')
     pl.xlabel('$\\Delta v$ [km s$^{-1}$]', fontsize=20)
     ax = pl.gca()
     ax.tick_params(pad=5)
 
-    pl.legend(numpoints=2, loc='best', fontsize=12)
+    pl.axvspan(absrv - absrv_err, absrv + absrv_err, color='0.8')
+    pl.axvline(absrv, linestyle='dashed', color='0.5',
+               label=u"RV = {:.01f} ± {:.01f}".format(absrv, absrv_err))
+
+    pl.legend(numpoints=2, loc='upper right', fontsize=12)
 
     ax = pl.gca()
 
