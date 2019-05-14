@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
 import numpy as np
+from numpy import nanmean, nanmedian
 import os
 import itertools
 from astropy.io import fits
 
 import smsyn
 
-def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,order=6,specorders=None, verbose=False):
+def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,order=4,specorders=None, verbose=False):
     """Read APf fits spectrum
     
     Read an APF spectrum from the raw, unnormalized fits file
@@ -17,14 +18,11 @@ def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,orde
     Args:
         specfile (string): name of input fits file
         flatten (bool): (optional) Deblaze?
-        Bflat (bool): (optional) Use B star observations for continuum 
-            normalization
+        Bflat (bool): (optional) Use B star observations for continuum normalization
         nflat (bool): (optional) Use narrow flat for continuum normalization
         geterr (bool): (optional) Also return uncertainties?
-        order (int): (optional) Polynomial order for continuum normalization, 
-            used only if Bflat is False
-        specorders (list): (optional) List of ints to only load specified 
-            spectral orders
+        order (int): (optional) Polynomial order for continuum normalization, used only if Bflat is False
+        specorders (list): (optional) List of ints to only load specified spectral orders
         verbose (bool): (optional) Print extra messages
 
     Returns:
@@ -45,11 +43,13 @@ def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,orde
             errspec /= spec
 
     if flatten and not Bflat and not nflat:
-        if verbose: print "Polynomial continuum normalization. order = %d" % order
+        if verbose:
+            print "Polynomial continuum normalization. order = %d" % order
         for i in range(spec.shape[0]):
             spec[i] = flatspec(spec[i],order=order)
     elif Bflat:
-        if verbose: print "B star continuum normalization"
+        if verbose:
+            print "B star continuum normalization"
 
         spec = spec[:,:-1]
         errspec = errspec[:,:-1]
@@ -65,11 +65,15 @@ def read_fits(specfile, flatten=True, Bflat=False, nflat=False,geterr=False,orde
         bspec = read_fits(fitsfile, flatten=False, Bflat=False, specorders=specorders)
         
         for i in range(spec.shape[0]):
-            if geterr: errspec[i] = np.sqrt(spec[i]) / spec[i]
+            if geterr:
+                errspec[i] = np.sqrt(spec[i]) / spec[i]
             spec[i] = Bflatten(spec[i], bspec[i])
-            
-    if geterr: return spec, errspec
-    else: return spec
+
+    if geterr:
+        errspec[np.isnan(errspec)] = 99.0
+        return spec, errspec
+    else:
+        return spec
 
 def flatspec(rawspec, order=4):
 
@@ -91,16 +95,26 @@ def flatspec(rawspec, order=4):
     #pl.plot(rawspec, 'k-')
     #pl.plot(x,yfit,'b-')
     #pl.show()
+
     normspec = rawspec / yfit
+
     return normspec
 
 def Bflatten(rawspec, bspec, order=12):
     ffrac = 0.98
+
     x = np.arange(0,len(bspec),1)
-    bspec /= np.nanmean(bspec)
-    rawspec /= np.nanmean(rawspec)
+
+    bspec /= nanmean(bspec)
+    rawspec /= nanmean(rawspec)
+
+
     normspec = rawspec / bspec
+    
     cont = normspec[normspec >= 0.8]
-    normspec /= np.nanmedian(cont)
+    normspec /= nanmedian(cont)
+    
+    #normspec /= np.max(sorted(normspec[pos])[:-3])
+
     return normspec
 

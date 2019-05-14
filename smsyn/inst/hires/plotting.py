@@ -2,6 +2,9 @@
 Module to create some useful plots from the HIRES pipeline
 """
 from matplotlib.pylab import *
+import matplotlib
+
+rcParams['font.size'] = 8
 
 def plot_fit(pipe, segment0, method):
     row = np.where(pipe.segments[:,0]==segment0)[0]
@@ -26,7 +29,10 @@ def plot_fit(pipe, segment0, method):
 
     # Identifies the contiguous masked regions
     sL = ma.notmasked_contiguous(ma.masked_array(wavmask,~wavmask))
-    wav_exclude = [ (wav[slice.start],wav[slice.stop-1]) for slice in sL]
+    if sL is not None:
+        wav_exclude = [ (wav[slice.start],wav[slice.stop-1]) for slice in sL]
+    else:
+        wav_exclude = []
 
     for i in range(nrows):
         sca(axL[i])
@@ -43,4 +49,4 @@ def plot_fit(pipe, segment0, method):
 
     fig.set_tight_layout(True)
     setp(axL[-1],xlabel='Wavelength',ylabel='Intensity')
-    setp(axL, ylim=(-0.2,1.2) ) 
+    setp(axL, ylim=(-0.2,1.2) )
