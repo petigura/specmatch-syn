@@ -4,6 +4,7 @@ from scipy.interpolate import InterpolatedUnivariateSpline
 
 SPEED_OF_LIGHT = 2.99792e5 # Speed of light [km/s] 
 
+
 def velocityshift(wav, flux, ref_wav, ref_flux, plot=False):
     """
     Find the velocity shift between two spectra. 
@@ -35,8 +36,8 @@ def velocityshift(wav, flux, ref_wav, ref_flux, plot=False):
     # be blue-shifted in order to line up with the observed
     # spectrum. Thus, to put the spectra on the same scale, the
     # observed spectrum must be red-shifted, i.e. vmax is positive.
-    flux-=np.mean(flux)
-    ref_flux-=np.mean(ref_flux)
+    flux -= np.mean(flux)
+    ref_flux -= np.mean(ref_flux)
     lag = np.arange(-nwav + 1, nwav) 
     dvel = -1.0 * lag * dvel
     corr = np.correlate(ref_flux, flux, mode='full')
@@ -46,13 +47,13 @@ def velocityshift(wav, flux, ref_wav, ref_flux, plot=False):
         from matplotlib import pylab as plt
         fig,axL = plt.subplots(ncols=2)
         plt.sca(axL[0])
-        plt.plot(wav,ref_flux)
-        plt.plot(wav,flux)
+        plt.plot(wav, ref_flux)
+        plt.plot(wav, flux)
         plt.sca(axL[1])
-        vrange = (-100,100)
+        vrange = (-100, 100)
         b = (dvel > vrange[0]) & (dvel < vrange[1])
-        plt.plot(dvel[b],corr[b])
-        plt.plot([vmax],[corrmax],'o',label='Cross-correlation Peak')
+        plt.plot(dvel[b], corr[b])
+        plt.plot([vmax], [corrmax], 'o', label='Cross-correlation Peak')
         fig.set_tight_layout(True)
         plt.draw()
         plt.show()
@@ -76,14 +77,15 @@ def loglambda(wav0, flux0):
         flux (array): flux values at wav
         dvel (float): spacing between measurements in velocity space (km/s)
     """
-    assert wav0.shape==flux0.shape, "wav0 and flux must be same size"
+    assert wav0.shape == flux0.shape, "wav0 and flux must be same size"
     npix = wav0.size
-    wav = np.logspace( np.log10( wav0[0] ), np.log10( wav0[-1] ), wav0.size)
+    wav = np.logspace(np.log10(wav0[0]), np.log10(wav0[-1]), wav0.size)
     spline = InterpolatedUnivariateSpline(wav0, flux0)
     flux = spline(wav)
     dvel = wav_to_dvel(wav)
     dvel = np.mean(dvel)
     return wav, flux, dvel
+
 
 def quadratic_max(x, y, r=3):
     """Fit points with parabola and find peak
@@ -101,6 +103,6 @@ def quadratic_max(x, y, r=3):
     idmax = np.argmax(y)
     idpeak = np.arange(np.clip(idmax-r, 0, len(x)), np.clip(idmax+r+1, 0, len(x)))
     a = np.polyfit(x[idpeak], y[idpeak], 2)
-    xmax = -1.0 * a[1] / (2.0 * a[0]) # Where the derivative is 0
-    ymax = np.polyval(a,xmax)
+    xmax = -1.0 * a[1] / (2.0 * a[0])  # Where the derivative is 0
+    ymax = np.polyval(a, xmax)
     return xmax, ymax
