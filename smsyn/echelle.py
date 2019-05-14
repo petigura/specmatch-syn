@@ -1,6 +1,10 @@
 import numpy as np
 from numpy import ma
+from numpy.polynomial import polynomial
+from astropy.modeling import models, fitting
+import itertools
 from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy import interpolate
 from . import wavsol
 from .wavsol import SPEED_OF_LIGHT
 
@@ -60,6 +64,10 @@ class PixelVelocityShift(object):
         """
         if method=='global':
             dvel = self._calculate_dvel_global(**kwargs)
+        if method=='2D':
+            dvel = self._calculate_dvel_2D(**kwargs)
+        if method=='spline':
+            dvel = self._calculate_dvel_spline(**kwargs)
             
         print "Solving for pixel-by-pixel velocity shift"
         print_vshift(self.pixmid, dvel[:,self.pixmid] )
@@ -93,6 +101,80 @@ class PixelVelocityShift(object):
         dvel = np.zeros((self.nord,self.npix)) 
         dvel += np.polyval(pfit,pix)[np.newaxis,:]
         return dvel
+
+    def _calculate_dvel_2D(self):
+        """
+        Fit a 2D surface to dvel vs. pixel vs. order
+        """
+        # threshold (units of MAD) to throw out shifts
+        sigclip = 5
+        vshift = self.vshift.copy()
+        med = np.median(vshift)
+        mad = np.median(np.abs(vshift - med))
+        bout = np.abs(vshift - med) > sigclip * mad
+        vshift = ma.masked_array(vshift, bout)
+
+        if np.std(vshift) > 25:
+            print "WARNING: velocity shifts not well determined"
+            vshift *= 0
+
+        pix = np.arange(self.npix)
+        ord = np.arange(self.nord)
+        x, y = np.meshgrid(self.pixmid-np.mean(pix), ord)
+
+        p_init = models.Polynomial2D(degree=3)
+        fit_p = fitting.LevMarLSQFitter()
+
+        p = fit_p(p_init, x, y, vshift)
+
+        dvel = np.zeros((self.nord, self.npix))
+        XX, YY = np.meshgrid(pix-np.mean(pix), ord)
+        fit = p(XX, YY)
+        dvel = dvel + fit
+
+        return dvel
+
+    def _calculate_dvel_spline(self):
+        """
+        Fit a 2D spline to dvel vs. pixel vs. order
+        """
+        # threshold (units of MAD) to throw out shifts
+        sigclip = 5
+        vshift = self.vshift.copy()
+        med = np.median(vshift)
+        mad = np.median(np.abs(vshift - med))
+        bout = np.abs(vshift - med) > sigclip * mad
+        vshift = ma.masked_array(vshift, bout)
+
+        if np.std(vshift) > 25:
+            print "WARNING: velocity shifts not well determined"
+            vshift *= 0
+
+        pix = np.arange(self.npix)
+        ord = np.arange(self.nord)
+
+        x = []
+        y = []
+        z = []
+        for o in ord:
+            for i in range(len(self.pixmid)):
+                dv = vshift[o,i]
+                if np.isfinite(dv):
+                    x.append(o)
+                    y.append(self.pixmid[i])
+                    z.append(dv)
+
+        # p = interpolate.interp2d(self.pixmid, ord, vshift, kind='cubic')
+        # fit = p(pix, ord)
+
+        p = interpolate.bisplrep(x, y, z)
+        fit = interpolate.bisplev(ord, pix, p)
+
+        dvel = np.zeros((self.nord, self.npix))
+        dvel = dvel + fit
+
+        return dvel
+
 
 def vshift(ech, ref_wav, ref_flux, nseg=8):
     """Compute velocity shift between echelle spectrum and a reference spectrum
@@ -213,3 +295,16 @@ def flatten(ech, method='average'):
     flux = flux.filled()
     uflux = uflux.filled()
     return flux, uflux
+
+
+def polyfit2d(x, y, f, deg):
+    x = np.asarray(x)
+    y = np.asarray(y)
+    f = np.asarray(f)
+    deg = np.asarray(deg)
+    vander = polynomial.polyvander2d(x, y, deg)
+    vander = vander.reshape((-1,vander.shape[-1]))
+    f = f.reshape((vander.shape[0],))
+    c = np.linalg.lstsq(vander, f)[0]
+
+    return c.reshape(deg+1)

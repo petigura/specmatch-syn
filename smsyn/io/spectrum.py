@@ -73,7 +73,7 @@ class Spectrum(np.recarray):
         fitsheader.update(self.header)
         primary_hdu = fits.PrimaryHDU(header=fitsheader)
         hdu_list = fits.HDUList([primary_hdu, table_hdu])
-        hdu_list.writeto(outfile, clobber=clobber)
+        hdu_list.writeto(outfile, clobber=clobber, output_verify='silentfix')
 
 def read_fits(filename):
     """Read spectrum from fits file
