@@ -43,7 +43,8 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
 
     # For the fine grid search, 
     print "performing fine grid search"
-    top = param_table_coarse.sort_values(by='rchisq').head(10) 
+    top = param_table_coarse.sort_values(by='rchisq').head(10)
+    import pdb; pdb.set_trace()
     tab = param_table.ix[idx_fine]
     tab = tab.drop(idx_coarse)
 
