@@ -73,7 +73,7 @@ def grid_search(pipe, debug=False):
     """
 
     # Load up the model library
-    lib = smsyn.library.read_hdf(pipe.libfile, wavlim=[4000,4100])
+    lib = smsyn.library.read_hdf(pipe.libfile, wavlim=[4000, 4100])
     param_table = lib.model_table
     param_table['vsini'] = 5
     param_table['psf'] = 0
@@ -87,6 +87,7 @@ def grid_search(pipe, debug=False):
 
     segments = pipe.segments
     if debug:
+        import pdb; pdb.set_trace()
         idx_coarse = param_table[
             param_table.teff.isin([5500,6000]) &
             param_table.logg.isin([3.0,5.0]) &
@@ -96,8 +97,6 @@ def grid_search(pipe, debug=False):
 
     # Determine spacing of fine grid
     idx_fine = param_table[~param_table.fe.isin([0.2])].index
-
-    import pdb; pdb.set_trace()
 
     for segment in segments:
         spec = pipe._get_spec_segment(segment)
