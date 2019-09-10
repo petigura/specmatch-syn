@@ -40,12 +40,12 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     
     # First do a coarse grid search
     print "performing coarse grid search"
-    param_table_coarse = grid_search_loop(match, param_table.iloc[idx_coarse])
+    param_table_coarse = grid_search_loop(match, param_table.loc[idx_coarse, 'model_index'])
 
     # For the fine grid search, 
     print "performing fine grid search"
     top = param_table_coarse.sort_values(by='rchisq').head(10)
-    tab = param_table.iloc[idx_fine]
+    tab = param_table.loc[idx_fine, 'model_index']
     tab = tab.drop(idx_coarse)
 
     param_table_fine = tab[

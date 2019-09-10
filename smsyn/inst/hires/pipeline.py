@@ -85,8 +85,6 @@ def grid_search(pipe, debug=False):
         param_table.fe.isin([-1.0,-0.5,0,0.5])
     ].index
 
-    import pdb; pdb.set_trace()
-
     segments = pipe.segments
     if debug:
         idx_coarse = param_table[
