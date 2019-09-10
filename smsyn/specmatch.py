@@ -17,6 +17,7 @@ def wav_exclude_to_wavmask(wav, wav_exclude):
         wavmask[(wav_min < wav) & (wav < wav_max)] = True
     return wavmask
 
+
 def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     """
     Args:
@@ -44,7 +45,7 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     # For the fine grid search, 
     print "performing fine grid search"
     top = param_table_coarse.sort_values(by='rchisq').head(10)
-    tab = param_table.ix[idx_fine]
+    tab = param_table.iloc[idx_fine]
     tab = tab.drop(idx_coarse)
 
     param_table_fine = tab[
@@ -59,6 +60,7 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     print param_table[cols].sort_values(by='rchisq').head(10) 
 
     return param_table
+
 
 def grid_search_loop(match, param_table0):
     """Grid Search
