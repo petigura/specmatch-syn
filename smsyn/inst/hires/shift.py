@@ -48,9 +48,4 @@ def shift(wav, flux, uflux, ref_wav, ref_flux):
     dvel = pvs.caculate_dvel(method=PIXVELSHIFT_METHOD)
     ech_shift = smsyn.echelle.shift_orders(ech, ref_wav, dvel)
     flux_shift, uflux_shift = smsyn.echelle.flatten(ech_shift)
-
-    if return_velocities:
-        return flux_shift, uflux_shift, dvel
-    else:
-        return flux_shift, uflux_shift
-
+    return flux_shift, uflux_shift
