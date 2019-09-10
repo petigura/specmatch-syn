@@ -97,6 +97,8 @@ def grid_search(pipe, debug=False):
     # Determine spacing of fine grid
     idx_fine = param_table[~param_table.fe.isin([0.2])].index
 
+    import pdb; pdb.set_trace()
+
     for segment in segments:
         spec = pipe._get_spec_segment(segment)
         print "Grid search: {}".format(spec.__repr__())
