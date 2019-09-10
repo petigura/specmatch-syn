@@ -32,7 +32,7 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
             search.
     """
     wavlim = spec.wav[0],spec.wav[-1]
-    lib = smsyn.library.read_hdf(libfile,wavlim=wavlim)
+    lib = smsyn.library.read_hdf(libfile, wavlim=wavlim)
     wavmask = wav_exclude_to_wavmask(spec.wav, wav_exclude)
     match = smsyn.match.Match(
         spec, lib, wavmask, cont_method='spline-dd', rot_method='rot'
@@ -40,6 +40,7 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     
     # First do a coarse grid search
     print "performing coarse grid search"
+    import pdb; pdb.set_trace()
     param_table_coarse = grid_search_loop(match, param_table.iloc[idx_coarse])
 
     # For the fine grid search, 
