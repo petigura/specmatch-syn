@@ -245,7 +245,7 @@ def bestfit(bestpars, pipe, title, method='polish', outfile='bestfit.pdf', *args
 
     pl.axvspan(absrv - absrv_err, absrv + absrv_err, color='0.8')
     pl.axvline(absrv, linestyle='dashed', color='0.5',
-               label=u"RV = {:.01f} ± {:.01f}".format(absrv, absrv_err))
+               label=u"RV = {:.01f} ± {:.01f} km/s".format(absrv, absrv_err))
 
     pl.legend(numpoints=2, loc='upper right', fontsize=12)
 
