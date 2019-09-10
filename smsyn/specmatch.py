@@ -40,7 +40,6 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     
     # First do a coarse grid search
     print "performing coarse grid search"
-    import pdb; pdb.set_trace()
     param_table_coarse = grid_search_loop(match, param_table.iloc[idx_coarse])
 
     # For the fine grid search, 
