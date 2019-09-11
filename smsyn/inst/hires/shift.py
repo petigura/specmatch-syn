@@ -3,7 +3,7 @@ NSEG = 8
 PIXVELSHIFT_METHOD = 'global'
 NPIX_CLIP = 20 # Number of pixels to clip off at the ends of orders.
 
-def shift(wav, flux, uflux, ref_wav, ref_flux):
+def shift(wav, flux, uflux, ref_wav, ref_flux, return_velocities=False):
     """Shift echelle spectrum to a reference spectrum
 
     Given an extracted echelle spectrum having `nord` orders and
@@ -34,6 +34,9 @@ def shift(wav, flux, uflux, ref_wav, ref_flux):
         ref_flux (array): Array with shape `(nref_wav, )` with the
             continuum-normalized flux of reference spectrum.
 
+        return_velocities (bool): return the velocity shift as well as the
+            shifted spectrum
+
     Returns:
         flux_shift (array): Array with shape `(nref_wav, )` target spectrum
             shifted to the reference wavelength scale.
@@ -48,4 +51,9 @@ def shift(wav, flux, uflux, ref_wav, ref_flux):
     dvel = pvs.caculate_dvel(method=PIXVELSHIFT_METHOD)
     ech_shift = smsyn.echelle.shift_orders(ech, ref_wav, dvel)
     flux_shift, uflux_shift = smsyn.echelle.flatten(ech_shift)
-    return flux_shift, uflux_shift
+
+    if return_velocities:
+        return flux_shift, uflux_shift, dvel
+    else:
+        return flux_shift, uflux_shift
+

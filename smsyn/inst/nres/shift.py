@@ -38,6 +38,9 @@ def shift(wav, flux, uflux, ref_wav, ref_flux, return_velocities=False):
         ref_flux (array): Array with shape `(nref_wav, )` with the
             continuum-normalized flux of reference spectrum.
 
+        return_velocities (bool): return the velocity shift as well as the
+            shifted spectrum
+
     Returns:
         flux_shift (array): Array with shape `(nref_wav, )` target spectrum
             shifted to the reference wavelength scale.
