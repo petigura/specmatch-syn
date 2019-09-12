@@ -17,6 +17,7 @@ def wav_exclude_to_wavmask(wav, wav_exclude):
         wavmask[(wav_min < wav) & (wav < wav_max)] = True
     return wavmask
 
+
 def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     """
     Args:
@@ -31,7 +32,7 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
             search.
     """
     wavlim = spec.wav[0],spec.wav[-1]
-    lib = smsyn.library.read_hdf(libfile,wavlim=wavlim)
+    lib = smsyn.library.read_hdf(libfile, wavlim=wavlim)
     wavmask = wav_exclude_to_wavmask(spec.wav, wav_exclude)
     match = smsyn.match.Match(
         spec, lib, wavmask, cont_method='spline-dd', rot_method='rot'
@@ -39,13 +40,12 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     
     # First do a coarse grid search
     print "performing coarse grid search"
-    param_table_coarse = grid_search_loop(match, param_table.ix[idx_coarse])
+    param_table_coarse = grid_search_loop(match, param_table.loc[idx_coarse])
 
     # For the fine grid search, 
     print "performing fine grid search"
     top = param_table_coarse.sort_values(by='rchisq').head(10)
-    import pdb; pdb.set_trace()
-    tab = param_table.ix[idx_fine]
+    tab = param_table.loc[idx_fine]
     tab = tab.drop(idx_coarse)
 
     param_table_fine = tab[
@@ -60,6 +60,7 @@ def grid_search(spec, libfile, wav_exclude, param_table, idx_coarse, idx_fine):
     print param_table[cols].sort_values(by='rchisq').head(10) 
 
     return param_table
+
 
 def grid_search_loop(match, param_table0):
     """Grid Search
@@ -176,7 +177,7 @@ def lincomb(spec, libfile, wav_exclude, param_table):
     mw = np.array(mw)
     mw /= mw.sum()
 
-    params_out = lib.model_table.iloc[model_indecies]
+    params_out = lib.model_table.loc[model_indecies]
     params_out = params_out['teff logg fe'.split()]
     params_out = pd.DataFrame((params_out.T * mw).T.sum()).T
     params_out['vsini'] = out.params['vsini'].value

@@ -73,7 +73,7 @@ def grid_search(pipe, debug=False):
     """
 
     # Load up the model library
-    lib = smsyn.library.read_hdf(pipe.libfile, wavlim=[4000,4100])
+    lib = smsyn.library.read_hdf(pipe.libfile, wavlim=[4000, 4100])
     param_table = lib.model_table
     param_table['vsini'] = 5
     param_table['psf'] = 0
@@ -101,13 +101,13 @@ def grid_search(pipe, debug=False):
         spec = pipe._get_spec_segment(segment)
         print "Grid search: {}".format(spec.__repr__())
 
-        param_table = smsyn.specmatch.grid_search(
+        param_table_out = smsyn.specmatch.grid_search(
             spec, pipe.libfile, pipe.wav_exclude, param_table, 
             idx_coarse, idx_fine
         )
 
         extname = 'grid_search_%i' % segment[0]
-        smsyn.io.fits.write_dataframe(pipe.smfile, extname, param_table,)
+        smsyn.io.fits.write_dataframe(pipe.smfile, extname, param_table_out)
 
 def lincomb(pipe):
     """
